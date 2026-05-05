@@ -1,0 +1,56 @@
+final_score = opinion_entropy × engagement_weight × freshness_factor
+
+opinion_entropy = - [p_agree × ln(p_agree) + p_disagree × ln(p_disagree)]
+
+p_agree = W_agree / W_polarized
+p_disagree = W_disagree / W_polarized
+
+W_agree = ∑ comment_weight of AGREE comments
+W_neutral = ∑ comment_weight of NEUTRAL comments
+W_disagree = ∑ comment_weight of DISAGREE comments
+
+W_polarized = W_agree + W_disagree
+W_total = W_agree + W_disagree + W_neutral
+
+comment_weight = is_folded ? 0 : 1 + ln(like_count + 1) + 0.5 × ln(unique_reply_user_count + 1)
+
+
+engagement_weight = 1 + ln(W_total + 1)
+
+freshness_factor = max(0.3, 1 / (hour_count/24 + 1))
+
+If W_polarized = 0, opinion_entropy = 0
+If W_agree = 0 or W_disagree = 0, opinion_entropy = 0
+If W_agree = W_disagree, opinion_entropy = ln(2) ≈ 0.693
+
+A comment that is folded will not be counted towards opinion_entropy:
+is_folded = 
+True if report_scoreSPAM >= 2.0
+True if report_scoreHARASSMENT >= 3.0
+True if report_scoreOFFTOPIC >= 5.0
+False otherwise 
+
+Report system:
+Each comment has report_scoreTYPE. A comment with report_scoreTYPE >= N (for that type) will be folded and not counted towards opinion_entropy. 
+
+report_scoreTYPE = ∑ w_level for that TYPE
+
+Each report can be assigned to one of three types.
+SPAM 
+HARASSMENT 
+OFFTOPIC 
+
+User role & w_level
+Each user level contributes different w_level weight for calculating report_score 
+New user (registered < 14 days) - 0.5
+Official user (registered >= 14 days ) - 1.0
+Reputable user (registered >= 14 days & receive likes from 100 different users) - 1.5
+Administrator (through application) - 2.0 
+
+Important features:
+When user supplements their own opinion, they can only edit instead of replying to it. User can only reply to other users’ opinions
+
+Abuse defense:
+For same node, same user can only make 1 single reply for 5 minutes
+Sensitive Word Filter
+Manual review
