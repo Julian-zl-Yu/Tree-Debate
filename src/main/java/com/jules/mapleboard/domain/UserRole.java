@@ -12,3 +12,4 @@ public class UserRole {
     @TableField("role_id")
     private Long roleId;
 }
+
