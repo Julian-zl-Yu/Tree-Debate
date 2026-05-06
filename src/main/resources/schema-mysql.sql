@@ -1,123 +1,122 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- ----------------------------
--- Table structure for comments
--- ----------------------------
-DROP TABLE IF EXISTS `comments`;
-CREATE TABLE `comments`  (
-                             `id` bigint NOT NULL AUTO_INCREMENT,
-                             `post_id` bigint NOT NULL,
-                             `author` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                             `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                             `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-                             `user_id` bigint NULL DEFAULT NULL,
-                             PRIMARY KEY (`id`) USING BTREE,
-                             INDEX `idx_comments_post`(`post_id` ASC) USING BTREE,
-                             INDEX `idx_comments_user_id`(`user_id` ASC) USING BTREE,
-                             CONSTRAINT `fk_comments_post` FOREIGN KEY (`post_id`) REFERENCES `posts` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 25 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+DROP TABLE IF EXISTS opinion_reports;
+DROP TABLE IF EXISTS opinion_reply_users;
+DROP TABLE IF EXISTS opinion_likes;
+DROP TABLE IF EXISTS opinion_node_stats;
+DROP TABLE IF EXISTS opinion_nodes;
+DROP TABLE IF EXISTS topics;
+DROP TABLE IF EXISTS user_roles;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS users;
 
--- ----------------------------
--- Records of comments
--- ----------------------------
-INSERT INTO `comments` VALUES (18, 7, 'dongye', '很好', '2025-09-21 19:08:30', 4);
-INSERT INTO `comments` VALUES (20, 7, 'dongye', 'henhao ', '2025-09-21 19:10:04', 4);
-INSERT INTO `comments` VALUES (22, 7, 'dongye', 's', '2025-09-21 19:19:46', 4);
+CREATE TABLE users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(60) NOT NULL UNIQUE,
+    password VARCHAR(100) NOT NULL,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    user_level ENUM('NEW', 'OFFICIAL', 'REPUTABLE', 'ADMIN') NOT NULL DEFAULT 'NEW',
+    received_like_user_count INT NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for posts
--- ----------------------------
-DROP TABLE IF EXISTS `posts`;
-CREATE TABLE `posts`  (
-                          `id` bigint NOT NULL AUTO_INCREMENT,
-                          `category` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          `title` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          `content` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          `author` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-                          `location` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-                          `price` decimal(10, 2) NULL DEFAULT NULL,
-                          `company` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-                          `wage` decimal(10, 2) NULL DEFAULT NULL,
-                          `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-                          `user_id` bigint NULL DEFAULT NULL,
-                          PRIMARY KEY (`id`) USING BTREE,
-                          INDEX `idx_posts_category_created`(`category` ASC, `created_at` ASC) USING BTREE,
-                          INDEX `idx_posts_title`(`title` ASC) USING BTREE,
-                          INDEX `idx_posts_user_id`(`user_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 22 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE roles (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(60) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Records of posts
--- ----------------------------
-INSERT INTO `posts` VALUES (4, 'SECOND_HAND', '出椅子一把', '新的，买来没坐过', 'Jules', 'Richmond', 10.00, '', 0.00, '2025-09-21 01:26:28', NULL);
-INSERT INTO `posts` VALUES (5, 'SECOND_HAND', '出一个水杯', '不锈钢保温的', 'Julie', 'Vancouver', 8.00, NULL, NULL, '2025-09-21 01:44:17', NULL);
-INSERT INTO `posts` VALUES (6, 'SECOND_HAND', '出旧家具', '八成新家具', 'Alice', 'Vancouver', 68.00, NULL, NULL, '2025-09-21 02:53:00', NULL);
-INSERT INTO `posts` VALUES (7, 'SECOND_HAND', '出旧手机', '二手手机', 'Alice', 'Richmond', 300.00, NULL, NULL, '2025-09-21 02:53:35', NULL);
+CREATE TABLE user_roles (
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for roles
--- ----------------------------
-DROP TABLE IF EXISTS `roles`;
-CREATE TABLE `roles`  (
-                          `id` bigint NOT NULL AUTO_INCREMENT,
-                          `name` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          PRIMARY KEY (`id`) USING BTREE,
-                          UNIQUE INDEX `name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+INSERT IGNORE INTO roles(name)
+VALUES ('ROLE_USER'), ('ROLE_ADMIN');
 
--- ----------------------------
--- Records of roles
--- ----------------------------
-INSERT INTO `roles` VALUES (2, 'ROLE_ADMIN');
-INSERT INTO `roles` VALUES (1, 'ROLE_USER');
+CREATE TABLE topics (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    category VARCHAR(30) NOT NULL,
+    title VARCHAR(150) NOT NULL,
+    content LONGTEXT NOT NULL,
+    author_id BIGINT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_topics_category_created (category, created_at),
+    INDEX idx_topics_title (title),
+    CONSTRAINT fk_topics_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for user_roles
--- ----------------------------
-DROP TABLE IF EXISTS `user_roles`;
-CREATE TABLE `user_roles`  (
-                               `user_id` bigint NOT NULL,
-                               `role_id` bigint NOT NULL,
-                               PRIMARY KEY (`user_id`, `role_id`) USING BTREE,
-                               INDEX `fk_ur_role`(`role_id` ASC) USING BTREE,
-                               CONSTRAINT `fk_ur_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
-                               CONSTRAINT `fk_ur_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE opinion_nodes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    topic_id BIGINT NOT NULL,
+    parent_id BIGINT NULL,
+    author_id BIGINT NOT NULL,
+    stance ENUM('AGREE', 'NEUTRAL', 'DISAGREE') NOT NULL,
+    content LONGTEXT NOT NULL,
+    is_folded TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_opinion_topic (topic_id),
+    INDEX idx_opinion_parent (parent_id),
+    INDEX idx_opinion_author (author_id),
+    INDEX idx_opinion_topic_parent (topic_id, parent_id),
+    INDEX idx_opinion_parent_author_time (parent_id, author_id, created_at),
+    CONSTRAINT fk_opinion_topic FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE,
+    CONSTRAINT fk_opinion_parent FOREIGN KEY (parent_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_opinion_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Records of user_roles
--- ----------------------------
-INSERT INTO `user_roles` VALUES (1, 1);
-INSERT INTO `user_roles` VALUES (2, 1);
-INSERT INTO `user_roles` VALUES (3, 1);
-INSERT INTO `user_roles` VALUES (4, 1);
-INSERT INTO `user_roles` VALUES (5, 1);
-INSERT INTO `user_roles` VALUES (6, 1);
-INSERT INTO `user_roles` VALUES (1, 2);
+CREATE TABLE opinion_node_stats (
+    opinion_id BIGINT PRIMARY KEY,
+    like_count INT NOT NULL DEFAULT 0,
+    reply_count INT NOT NULL DEFAULT 0,
+    unique_reply_user_count INT NOT NULL DEFAULT 0,
+    report_score_spam DECIMAL(6,2) NOT NULL DEFAULT 0,
+    report_score_harassment DECIMAL(6,2) NOT NULL DEFAULT 0,
+    report_score_offtopic DECIMAL(6,2) NOT NULL DEFAULT 0,
+    comment_weight DOUBLE NOT NULL DEFAULT 1,
+    w_agree DOUBLE NOT NULL DEFAULT 0,
+    w_neutral DOUBLE NOT NULL DEFAULT 0,
+    w_disagree DOUBLE NOT NULL DEFAULT 0,
+    opinion_entropy DOUBLE NOT NULL DEFAULT 0,
+    engagement_weight DOUBLE NOT NULL DEFAULT 1,
+    freshness_factor DOUBLE NOT NULL DEFAULT 1,
+    final_score DOUBLE NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_stats_opinion FOREIGN KEY (opinion_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Table structure for users
--- ----------------------------
-DROP TABLE IF EXISTS `users`;
-CREATE TABLE `users`  (
-                          `id` bigint NOT NULL AUTO_INCREMENT,
-                          `username` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          `password` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-                          `enabled` tinyint(1) NOT NULL DEFAULT 1,
-                          `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP,
-                          PRIMARY KEY (`id`) USING BTREE,
-                          UNIQUE INDEX `username`(`username` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE opinion_likes (
+    opinion_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (opinion_id, user_id),
+    CONSTRAINT fk_like_opinion FOREIGN KEY (opinion_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_like_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ----------------------------
--- Records of users
--- ----------------------------
-INSERT INTO `users` VALUES (1, 'admin', '$2a$12$tq4KCgK/XiwerDO8y8S22.bGFLMKQJVJSWYuTBZ6Oes5NR3efgy/a', 1, '2025-09-21 01:58:45');
-INSERT INTO `users` VALUES (2, 'bob', '$2a$10$AbCdEf123...xyz', 1, '2025-09-21 02:00:40');
-INSERT INTO `users` VALUES (3, 'alice', '$2a$10$qI8.AC2.T7AfUyyunOD5Ge3sJdURAtts3nOOrtpUKcRvy7rWHryyG', 1, '2025-09-21 02:21:15');
-INSERT INTO `users` VALUES (4, 'dongye', '$2a$10$Sl1rxvN4uR.phbHBzvpwTuqI9.6ufDnl6.Bcq9YzM.mOooPRuc5/O', 1, '2025-09-21 03:45:15');
-INSERT INTO `users` VALUES (5, 'jules', '$2a$10$lAFaxK0KMJZwjFH50hnxoeLA6XWgvGAUUVIODQVhgK4ZRBmeCB9PS', 1, '2025-09-21 17:08:06');
-INSERT INTO `users` VALUES (6, 'julian', '$2a$10$csLleAgDblFqFJT.RTKv3udDWV9ACCLwHv2whsKRCN0Uovo0qGLWS', 1, '2025-09-22 21:33:49');
+CREATE TABLE opinion_reply_users (
+    opinion_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    PRIMARY KEY (opinion_id, user_id),
+    CONSTRAINT fk_reply_user_opinion FOREIGN KEY (opinion_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_reply_user_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE opinion_reports (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    opinion_id BIGINT NOT NULL,
+    reporter_id BIGINT NOT NULL,
+    report_type ENUM('SPAM', 'HARASSMENT', 'OFFTOPIC') NOT NULL,
+    weight DECIMAL(3,1) NOT NULL,
+    reason VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_report_once (opinion_id, reporter_id, report_type),
+    CONSTRAINT fk_report_opinion FOREIGN KEY (opinion_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_report_user FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;

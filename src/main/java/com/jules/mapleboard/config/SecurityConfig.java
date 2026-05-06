@@ -89,6 +89,7 @@ public class SecurityConfig {
                         // 公共读取
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/comments/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/topics/**").permitAll()
 
                         // 其它均需认证
                         .anyRequest().authenticated()
