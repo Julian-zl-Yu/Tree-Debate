@@ -1,8 +1,21 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- Scoring formula:
+-- final_score = opinion_entropy * engagement_weight * freshness_factor
+-- opinion_entropy = - [p_agree * ln(p_agree) + p_disagree * ln(p_disagree)]
+-- p_agree = W_agree / (W_agree + W_disagree)
+-- p_disagree = W_disagree / (W_agree + W_disagree)
+-- comment_weight = is_folded ? 0 : 1 + ln(like_count + 1) + 0.5 * ln(unique_reply_user_count + 1)
+-- engagement_weight = 1 + ln(W_agree + W_neutral + W_disagree + 1)
+-- freshness_factor = max(0.3, 1 / (hour_count / 24 + 1))
+--
+-- Auto fold thresholds:
+-- SPAM >= 2.0, HARASSMENT >= 3.0, OFFTOPIC >= 5.0
+
 DROP TABLE IF EXISTS opinion_reports;
 DROP TABLE IF EXISTS opinion_reply_users;
+DROP TABLE IF EXISTS user_received_like_users;
 DROP TABLE IF EXISTS opinion_likes;
 DROP TABLE IF EXISTS opinion_node_stats;
 DROP TABLE IF EXISTS opinion_nodes;
@@ -96,6 +109,15 @@ CREATE TABLE opinion_likes (
     PRIMARY KEY (opinion_id, user_id),
     CONSTRAINT fk_like_opinion FOREIGN KEY (opinion_id) REFERENCES opinion_nodes(id) ON DELETE CASCADE,
     CONSTRAINT fk_like_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_received_like_users (
+    author_id BIGINT NOT NULL,
+    liker_id BIGINT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (author_id, liker_id),
+    CONSTRAINT fk_received_like_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_received_like_liker FOREIGN KEY (liker_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE opinion_reply_users (

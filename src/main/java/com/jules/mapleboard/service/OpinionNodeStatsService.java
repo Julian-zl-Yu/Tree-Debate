@@ -18,5 +18,7 @@ public interface OpinionNodeStatsService {
 
     OpinionNodeStats recordReport(OpinionNode opinion, User reporter, ReportType reportType, String reason);
 
+    OpinionNodeStats setFolded(OpinionNode opinion, boolean folded);
+
     Map<Long, OpinionNodeStats> listStats(Collection<Long> opinionIds);
 }

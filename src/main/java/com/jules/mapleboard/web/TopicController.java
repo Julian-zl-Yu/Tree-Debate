@@ -8,6 +8,7 @@ import com.jules.mapleboard.dto.TopicCreateRequest;
 import com.jules.mapleboard.dto.TopicResponse;
 import com.jules.mapleboard.mapper.TopicMapper;
 import com.jules.mapleboard.mapper.UserMapper;
+import com.jules.mapleboard.service.SensitiveWordFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,10 +38,12 @@ import java.util.stream.Collectors;
 public class TopicController {
     private final TopicMapper topicMapper;
     private final UserMapper userMapper;
+    private final SensitiveWordFilter sensitiveWordFilter;
 
-    public TopicController(TopicMapper topicMapper, UserMapper userMapper) {
+    public TopicController(TopicMapper topicMapper, UserMapper userMapper, SensitiveWordFilter sensitiveWordFilter) {
         this.topicMapper = topicMapper;
         this.userMapper = userMapper;
+        this.sensitiveWordFilter = sensitiveWordFilter;
     }
 
     @Operation(summary = "List topics")
@@ -90,6 +93,10 @@ public class TopicController {
 
         if (currentUser == null) { // reject if not logged in
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (sensitiveWordFilter.containsSensitiveWord(dto.getTitle())
+                || sensitiveWordFilter.containsSensitiveWord(dto.getContent())) {
+            return ResponseEntity.badRequest().body("Topic contains sensitive words.");
         }
 
         //create new topic entity

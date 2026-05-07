@@ -3,6 +3,7 @@ package com.jules.mapleboard.web;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jules.mapleboard.domain.OpinionNode;
 import com.jules.mapleboard.domain.OpinionNodeStats;
+import com.jules.mapleboard.dto.OpinionNodeUpdateRequest;
 import com.jules.mapleboard.dto.OpinionReportCreateRequest;
 import com.jules.mapleboard.domain.Topic;
 import com.jules.mapleboard.domain.User;
@@ -13,6 +14,7 @@ import com.jules.mapleboard.mapper.OpinionNodeMapper;
 import com.jules.mapleboard.mapper.TopicMapper;
 import com.jules.mapleboard.mapper.UserMapper;
 import com.jules.mapleboard.service.OpinionNodeStatsService;
+import com.jules.mapleboard.service.SensitiveWordFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.time.LocalDateTime;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -45,15 +49,18 @@ public class OpinionNodeController {
     private final OpinionNodeMapper opinionNodeMapper;
     private final UserMapper userMapper;
     private final OpinionNodeStatsService statsService;
+    private final SensitiveWordFilter sensitiveWordFilter;
 
     public OpinionNodeController(TopicMapper topicMapper,
                                  OpinionNodeMapper opinionNodeMapper,
                                  UserMapper userMapper,
-                                 OpinionNodeStatsService statsService) {
+                                 OpinionNodeStatsService statsService,
+                                 SensitiveWordFilter sensitiveWordFilter) {
         this.topicMapper = topicMapper;
         this.opinionNodeMapper = opinionNodeMapper;
         this.userMapper = userMapper;
         this.statsService = statsService;
+        this.sensitiveWordFilter = sensitiveWordFilter;
     }
 
     @Operation(summary = "Get opinion tree for a topic")
@@ -92,12 +99,22 @@ public class OpinionNodeController {
         if (topic == null) {
             return ResponseEntity.notFound().build();
         }
+        if (sensitiveWordFilter.containsSensitiveWord(dto.getContent())) {
+            return ResponseEntity.badRequest().body("Content contains sensitive words.");
+        }
 
         OpinionNode parent = null;
         if (dto.getParentId() != null) {
             parent = opinionNodeMapper.selectById(dto.getParentId());
             if (parent == null || !topicId.equals(parent.getTopicId())) {
                 return ResponseEntity.badRequest().body("parentId must belong to the same topic.");
+            }
+            if (currentUser.getId().equals(parent.getAuthorId())) {
+                return ResponseEntity.badRequest().body("You can edit your own opinion instead of replying to it.");
+            }
+            if (hasRecentReply(parent.getId(), currentUser.getId())) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body("You can only reply to the same opinion once every 5 minutes.");
             }
         }
 
@@ -115,6 +132,35 @@ public class OpinionNodeController {
         }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(node, currentUser, nodeStats));
+    }
+
+    @Operation(summary = "Edit own opinion node")
+    @PutMapping("/{opinionId}")
+    public ResponseEntity<?> update(@PathVariable Long topicId,
+                                    @PathVariable Long opinionId,
+                                    @Valid @RequestBody OpinionNodeUpdateRequest dto,
+                                    Authentication authentication) {
+        User currentUser = currentUser(authentication);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (sensitiveWordFilter.containsSensitiveWord(dto.getContent())) {
+            return ResponseEntity.badRequest().body("Content contains sensitive words.");
+        }
+
+        OpinionNode opinion = opinionNodeMapper.selectById(opinionId);
+        if (opinion == null || !topicId.equals(opinion.getTopicId())) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!currentUser.getId().equals(opinion.getAuthorId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You can only edit your own opinion.");
+        }
+
+        opinion.setStance(dto.getStance());
+        opinion.setContent(dto.getContent());
+        opinionNodeMapper.updateById(opinion);
+        OpinionNodeStats stats = statsService.setFolded(opinion, Boolean.TRUE.equals(opinion.getFolded()));
+        return ResponseEntity.ok(toResponse(opinion, currentUser, stats));
     }
 
     @Operation(summary = "Like opinion node")
@@ -151,6 +197,9 @@ public class OpinionNodeController {
         if (opinion == null || !topicId.equals(opinion.getTopicId())) {
             return ResponseEntity.notFound().build();
         }
+        if (dto.getReason() != null && sensitiveWordFilter.containsSensitiveWord(dto.getReason())) {
+            return ResponseEntity.badRequest().body("Report reason contains sensitive words.");
+        }
 
         OpinionNodeStats stats = statsService.recordReport(opinion, currentUser, dto.getReportType(), dto.getReason());
         OpinionNode updatedOpinion = opinionNodeMapper.selectById(opinionId);
@@ -174,6 +223,14 @@ public class OpinionNodeController {
         }
         return userMapper.selectBatchIds(ids).stream()
                 .collect(Collectors.toMap(User::getId, Function.identity()));
+    }
+
+    private boolean hasRecentReply(Long parentId, Long userId) {
+        Long count = opinionNodeMapper.selectCount(new LambdaQueryWrapper<OpinionNode>()
+                .eq(OpinionNode::getParentId, parentId)
+                .eq(OpinionNode::getAuthorId, userId)
+                .ge(OpinionNode::getCreatedAt, LocalDateTime.now().minusMinutes(5)));
+        return count != null && count > 0;
     }
 
     // build N-ary tree from flat list using parent_id

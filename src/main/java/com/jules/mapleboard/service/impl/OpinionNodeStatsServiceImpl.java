@@ -10,11 +10,14 @@ import com.jules.mapleboard.domain.ReportType;
 import com.jules.mapleboard.domain.Stance;
 import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.domain.UserLevel;
+import com.jules.mapleboard.domain.UserReceivedLikeUser;
 import com.jules.mapleboard.mapper.OpinionLikeMapper;
 import com.jules.mapleboard.mapper.OpinionNodeStatsMapper;
 import com.jules.mapleboard.mapper.OpinionNodeMapper;
 import com.jules.mapleboard.mapper.OpinionReplyUserMapper;
 import com.jules.mapleboard.mapper.OpinionReportMapper;
+import com.jules.mapleboard.mapper.UserMapper;
+import com.jules.mapleboard.mapper.UserReceivedLikeUserMapper;
 import com.jules.mapleboard.service.OpinionNodeStatsService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -31,24 +34,32 @@ import java.util.stream.Collectors;
 
 @Service
 public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
-    private static final double FOLD_REPORT_SCORE_THRESHOLD = 3.0;
+    private static final double SPAM_FOLD_THRESHOLD = 2.0;
+    private static final double HARASSMENT_FOLD_THRESHOLD = 3.0;
+    private static final double OFFTOPIC_FOLD_THRESHOLD = 5.0;
 
     private final OpinionNodeStatsMapper statsMapper;
     private final OpinionLikeMapper likeMapper;
     private final OpinionReplyUserMapper replyUserMapper;
     private final OpinionReportMapper reportMapper;
     private final OpinionNodeMapper opinionNodeMapper;
+    private final UserMapper userMapper;
+    private final UserReceivedLikeUserMapper userReceivedLikeUserMapper;
 
     public OpinionNodeStatsServiceImpl(OpinionNodeStatsMapper statsMapper,
                                        OpinionLikeMapper likeMapper,
                                        OpinionReplyUserMapper replyUserMapper,
                                        OpinionReportMapper reportMapper,
-                                       OpinionNodeMapper opinionNodeMapper) {
+                                       OpinionNodeMapper opinionNodeMapper,
+                                       UserMapper userMapper,
+                                       UserReceivedLikeUserMapper userReceivedLikeUserMapper) {
         this.statsMapper = statsMapper;
         this.likeMapper = likeMapper;
         this.replyUserMapper = replyUserMapper;
         this.reportMapper = reportMapper;
         this.opinionNodeMapper = opinionNodeMapper;
+        this.userMapper = userMapper;
+        this.userReceivedLikeUserMapper = userReceivedLikeUserMapper;
     }
 
     @Override
@@ -88,17 +99,9 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
             stats.setUniqueReplyUserCount(value(stats.getUniqueReplyUserCount()) + 1);
         }
 
-        if (replyStance == Stance.AGREE) {
-            stats.setWAgree(value(stats.getWAgree()) + 1.0);
-        } else if (replyStance == Stance.NEUTRAL) {
-            stats.setWNeutral(value(stats.getWNeutral()) + 1.0);
-        } else if (replyStance == Stance.DISAGREE) {
-            stats.setWDisagree(value(stats.getWDisagree()) + 1.0);
-        }
-
-        recalculate(stats, parent.getCreatedAt());
         statsMapper.updateById(stats);
-        return stats;
+        recalculateNodeAndAncestors(parent);
+        return statsMapper.selectById(parent.getId());
     }
 
     @Override
@@ -119,8 +122,9 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
         }
 
         stats.setLikeCount(value(stats.getLikeCount()) + 1);
-        recalculate(stats, opinion.getCreatedAt());
-        statsMapper.updateById(stats);
+        recordReceivedLikeUser(opinion, userId);
+        recalculateNodeAndAncestors(opinion);
+        stats = statsMapper.selectById(opinion.getId());
         return stats;
     }
 
@@ -151,19 +155,29 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
             stats.setReportScoreOfftopic(value(stats.getReportScoreOfftopic()) + weight);
         }
 
-        double totalReportScore = totalReportScore(stats);
-        boolean shouldFold = totalReportScore >= FOLD_REPORT_SCORE_THRESHOLD;
-        stats.setCommentWeight(shouldFold ? 0.0 : 1.0);
-        recalculate(stats, opinion.getCreatedAt());
+        boolean shouldFold = shouldFold(stats);
+        recalculate(stats, opinion, shouldFold);
         statsMapper.updateById(stats);
 
         if (shouldFold && !Boolean.TRUE.equals(opinion.getFolded())) {
             opinion.setFolded(true);
             opinionNodeMapper.updateById(opinion);
-            recalculateParentFromChildren(opinion);
+            recalculateNodeAndAncestors(opinion);
         }
 
         return stats;
+    }
+
+    @Override
+    @Transactional
+    public OpinionNodeStats setFolded(OpinionNode opinion, boolean folded) {
+        OpinionNodeStats stats = initializeStats(opinion.getId());
+        opinion.setFolded(folded);
+        opinionNodeMapper.updateById(opinion);
+        recalculate(stats, opinion, folded);
+        statsMapper.updateById(stats);
+        recalculateNodeAndAncestors(opinion);
+        return statsMapper.selectById(opinion.getId());
     }
 
     @Override
@@ -196,85 +210,117 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
     }
 
     private double reportWeight(User reporter) {
-        UserLevel level = reporter.getUserLevel();
-        if (level == UserLevel.ADMIN) {
-            return 3.0;
-        }
-        if (level == UserLevel.REPUTABLE) {
+        if (reporter.getUserLevel() == UserLevel.ADMIN) {
             return 2.0;
         }
-        if (level == UserLevel.OFFICIAL) {
+        if (reporter.getCreatedAt() == null
+                || Duration.between(reporter.getCreatedAt(), LocalDateTime.now()).toDays() < 14) {
+            return 0.5;
+        }
+        if (value(reporter.getReceivedLikeUserCount()) >= 100) {
             return 1.5;
         }
         return 1.0;
     }
 
-    private double totalReportScore(OpinionNodeStats stats) {
-        return value(stats.getReportScoreSpam())
-                + value(stats.getReportScoreHarassment())
-                + value(stats.getReportScoreOfftopic());
+    private boolean shouldFold(OpinionNodeStats stats) {
+        return value(stats.getReportScoreSpam()) >= SPAM_FOLD_THRESHOLD
+                || value(stats.getReportScoreHarassment()) >= HARASSMENT_FOLD_THRESHOLD
+                || value(stats.getReportScoreOfftopic()) >= OFFTOPIC_FOLD_THRESHOLD;
     }
 
-    private void recalculateParentFromChildren(OpinionNode child) {
-        if (child.getParentId() == null) {
-            return;
+    private void recalculateNodeAndAncestors(OpinionNode node) {
+        OpinionNode current = node;
+        while (current != null) {
+            OpinionNodeStats currentStats = initializeStats(current.getId());
+            recalculate(currentStats, current, Boolean.TRUE.equals(current.getFolded()));
+            statsMapper.updateById(currentStats);
+            current = current.getParentId() == null ? null : opinionNodeMapper.selectById(current.getParentId());
         }
+    }
 
-        OpinionNode parent = opinionNodeMapper.selectById(child.getParentId());
-        if (parent == null) {
-            return;
-        }
+    private void recalculate(OpinionNodeStats stats, OpinionNode opinion, boolean folded) {
+        stats.setCommentWeight(commentWeight(stats, folded));
+        stats.setWAgree(0.0);
+        stats.setWNeutral(0.0);
+        stats.setWDisagree(0.0);
 
-        OpinionNodeStats parentStats = initializeStats(parent.getId());
-        parentStats.setWAgree(0.0);
-        parentStats.setWNeutral(0.0);
-        parentStats.setWDisagree(0.0);
+        java.util.List<OpinionNode> children = opinionNodeMapper.selectList(new LambdaQueryWrapper<OpinionNode>()
+                .eq(OpinionNode::getParentId, opinion.getId()));
+        stats.setReplyCount(children.size());
 
-        for (OpinionNode sibling : opinionNodeMapper.selectList(new LambdaQueryWrapper<OpinionNode>()
-                .eq(OpinionNode::getParentId, parent.getId()))) {
-            OpinionNodeStats siblingStats = initializeStats(sibling.getId());
-            double childWeight = value(siblingStats.getCommentWeight());
-            if (childWeight <= 0.0) {
-                continue;
-            }
-
-            if (sibling.getStance() == Stance.AGREE) {
-                parentStats.setWAgree(value(parentStats.getWAgree()) + childWeight);
-            } else if (sibling.getStance() == Stance.NEUTRAL) {
-                parentStats.setWNeutral(value(parentStats.getWNeutral()) + childWeight);
-            } else if (sibling.getStance() == Stance.DISAGREE) {
-                parentStats.setWDisagree(value(parentStats.getWDisagree()) + childWeight);
+        for (OpinionNode child : children) {
+            OpinionNodeStats childStats = initializeStats(child.getId());
+            recalculate(childStats, child, Boolean.TRUE.equals(child.getFolded()));
+            statsMapper.updateById(childStats);
+            double childWeight = value(childStats.getCommentWeight());
+            if (childWeight > 0.0) {
+                addStanceWeight(stats, child.getStance(), childWeight);
             }
         }
 
-        recalculate(parentStats, parent.getCreatedAt());
-        statsMapper.updateById(parentStats);
-    }
-
-    private void recalculate(OpinionNodeStats stats, LocalDateTime createdAt) {
         double agree = value(stats.getWAgree());
         double disagree = value(stats.getWDisagree());
-        double stanceTotal = agree + disagree;
+        double polarized = agree + disagree;
 
         double entropy = 0.0;
-        if (stanceTotal > 0.0) {
-            double pAgree = agree / stanceTotal;
-            double pDisagree = disagree / stanceTotal;
+        if (polarized > 0.0 && agree > 0.0 && disagree > 0.0) {
+            double pAgree = agree / polarized;
+            double pDisagree = disagree / polarized;
             entropy = entropyTerm(pAgree) + entropyTerm(pDisagree);
         }
 
         double weightedInteractions = agree
                 + value(stats.getWNeutral())
-                + disagree
-                + value(stats.getLikeCount());
+                + disagree;
         double engagementWeight = 1.0 + Math.log(weightedInteractions + 1.0);
-        double freshnessFactor = freshnessFactor(createdAt);
-        double finalScore = value(stats.getCommentWeight()) * entropy * engagementWeight * freshnessFactor;
+        double freshnessFactor = freshnessFactor(opinion.getCreatedAt());
+        double finalScore = entropy * engagementWeight * freshnessFactor;
 
         stats.setOpinionEntropy(entropy);
         stats.setEngagementWeight(engagementWeight);
         stats.setFreshnessFactor(freshnessFactor);
         stats.setFinalScore(finalScore);
+    }
+
+    private double commentWeight(OpinionNodeStats stats, boolean folded) {
+        if (folded) {
+            return 0.0;
+        }
+        return 1.0
+                + Math.log(value(stats.getLikeCount()) + 1.0)
+                + 0.5 * Math.log(value(stats.getUniqueReplyUserCount()) + 1.0);
+    }
+
+    private void addStanceWeight(OpinionNodeStats stats, Stance stance, double weight) {
+        if (stance == Stance.AGREE) {
+            stats.setWAgree(value(stats.getWAgree()) + weight);
+        } else if (stance == Stance.NEUTRAL) {
+            stats.setWNeutral(value(stats.getWNeutral()) + weight);
+        } else if (stance == Stance.DISAGREE) {
+            stats.setWDisagree(value(stats.getWDisagree()) + weight);
+        }
+    }
+
+    private void recordReceivedLikeUser(OpinionNode opinion, Long likerId) {
+        if (opinion.getAuthorId() == null || opinion.getAuthorId().equals(likerId)
+                || userReceivedLikeUserMapper.countByAuthorIdAndLikerId(opinion.getAuthorId(), likerId) > 0) {
+            return;
+        }
+
+        UserReceivedLikeUser receivedLikeUser = new UserReceivedLikeUser();
+        receivedLikeUser.setAuthorId(opinion.getAuthorId());
+        receivedLikeUser.setLikerId(likerId);
+        try {
+            userReceivedLikeUserMapper.insert(receivedLikeUser);
+            User author = userMapper.selectById(opinion.getAuthorId());
+            if (author != null) {
+                author.setReceivedLikeUserCount(value(author.getReceivedLikeUserCount()) + 1);
+                userMapper.updateById(author);
+            }
+        } catch (DuplicateKeyException ignored) {
+            // another request already recorded this distinct liker
+        }
     }
 
     private double entropyTerm(double p) {
