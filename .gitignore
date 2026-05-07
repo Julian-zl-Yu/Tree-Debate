@@ -1,5 +1,12 @@
 HELP.md
+!backend/HELP.md
 target/
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -17,6 +24,7 @@ target/
 .idea
 *.iws
 *.iml
+!backend/mapleboard.iml
 *.ipr
 
 ### NetBeans ###
