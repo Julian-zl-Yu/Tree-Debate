@@ -2,13 +2,16 @@ package com.jules.mapleboard.web;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jules.mapleboard.domain.OpinionNode;
+import com.jules.mapleboard.domain.OpinionNodeStats;
 import com.jules.mapleboard.domain.Topic;
 import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.dto.OpinionNodeCreateRequest;
 import com.jules.mapleboard.dto.OpinionNodeResponse;
+import com.jules.mapleboard.dto.OpinionNodeStatsResponse;
 import com.jules.mapleboard.mapper.OpinionNodeMapper;
 import com.jules.mapleboard.mapper.TopicMapper;
 import com.jules.mapleboard.mapper.UserMapper;
+import com.jules.mapleboard.service.OpinionNodeStatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -40,13 +43,16 @@ public class OpinionNodeController {
     private final TopicMapper topicMapper;
     private final OpinionNodeMapper opinionNodeMapper;
     private final UserMapper userMapper;
+    private final OpinionNodeStatsService statsService;
 
     public OpinionNodeController(TopicMapper topicMapper,
                                  OpinionNodeMapper opinionNodeMapper,
-                                 UserMapper userMapper) {
+                                 UserMapper userMapper,
+                                 OpinionNodeStatsService statsService) {
         this.topicMapper = topicMapper;
         this.opinionNodeMapper = opinionNodeMapper;
         this.userMapper = userMapper;
+        this.statsService = statsService;
     }
 
     @Operation(summary = "Get opinion tree for a topic")
@@ -64,8 +70,11 @@ public class OpinionNodeController {
                 .map(OpinionNode::getAuthorId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet()));
+        Map<Long, OpinionNodeStats> statsByOpinionId = statsService.listStats(nodes.stream()
+                .map(OpinionNode::getId)
+                .collect(Collectors.toSet()));
 
-        return ResponseEntity.ok(toTree(nodes, usersById));
+        return ResponseEntity.ok(toTree(nodes, usersById, statsByOpinionId));
     }
 
     @Operation(summary = "Create opinion node")
@@ -83,8 +92,9 @@ public class OpinionNodeController {
             return ResponseEntity.notFound().build();
         }
 
+        OpinionNode parent = null;
         if (dto.getParentId() != null) {
-            OpinionNode parent = opinionNodeMapper.selectById(dto.getParentId());
+            parent = opinionNodeMapper.selectById(dto.getParentId());
             if (parent == null || !topicId.equals(parent.getTopicId())) {
                 return ResponseEntity.badRequest().body("parentId must belong to the same topic.");
             }
@@ -98,8 +108,31 @@ public class OpinionNodeController {
         node.setContent(dto.getContent());
         node.setFolded(false);
         opinionNodeMapper.insert(node);
+        OpinionNodeStats nodeStats = statsService.initializeStats(node.getId());
+        if (parent != null) {
+            statsService.recordReply(parent, dto.getStance());
+        }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(node, currentUser));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(node, currentUser, nodeStats));
+    }
+
+    @Operation(summary = "Like opinion node")
+    @PostMapping("/{opinionId}/likes")
+    public ResponseEntity<?> like(@PathVariable Long topicId,
+                                  @PathVariable Long opinionId,
+                                  Authentication authentication) {
+        User currentUser = currentUser(authentication);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        OpinionNode opinion = opinionNodeMapper.selectById(opinionId);
+        if (opinion == null || !topicId.equals(opinion.getTopicId())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        OpinionNodeStats stats = statsService.recordLike(opinion, currentUser.getId());
+        return ResponseEntity.ok(toStatsResponse(stats));
     }
 
     private User currentUser(Authentication authentication) {
@@ -120,10 +153,14 @@ public class OpinionNodeController {
                 .collect(Collectors.toMap(User::getId, Function.identity()));
     }
 
-    private List<OpinionNodeResponse> toTree(List<OpinionNode> nodes, Map<Long, User> usersById) {
+    // build N-ary tree from flat list using parent_id
+    private List<OpinionNodeResponse> toTree(List<OpinionNode> nodes,
+                                             Map<Long, User> usersById,
+                                             Map<Long, OpinionNodeStats> statsByOpinionId) {
         Map<Long, OpinionNodeResponse> byId = new LinkedHashMap<>();
         for (OpinionNode node : nodes) {
-            byId.put(node.getId(), toResponse(node, usersById.get(node.getAuthorId())));
+            byId.put(node.getId(), toResponse(node, usersById.get(node.getAuthorId()),
+                    statsByOpinionId.get(node.getId())));
         }
 
         List<OpinionNodeResponse> roots = new ArrayList<>();
@@ -134,10 +171,31 @@ public class OpinionNodeController {
                 byId.get(node.getParentId()).getChildren().add(node);
             }
         }
+        sortByScore(roots);
         return roots;
     }
 
-    private OpinionNodeResponse toResponse(OpinionNode node, User author) {
+    private void sortByScore(List<OpinionNodeResponse> nodes) {
+        nodes.sort((left, right) -> {
+            int scoreCompare = Double.compare(finalScore(right), finalScore(left));
+            if (scoreCompare != 0) {
+                return scoreCompare;
+            }
+            if (left.getCreatedAt() == null || right.getCreatedAt() == null) {
+                return 0;
+            }
+            return left.getCreatedAt().compareTo(right.getCreatedAt());
+        });
+        nodes.forEach(node -> sortByScore(node.getChildren()));
+    }
+
+    private double finalScore(OpinionNodeResponse node) {
+        return node.getStats() == null || node.getStats().getFinalScore() == null
+                ? 0.0
+                : node.getStats().getFinalScore();
+    }
+
+    private OpinionNodeResponse toResponse(OpinionNode node, User author, OpinionNodeStats stats) {
         OpinionNodeResponse response = new OpinionNodeResponse();
         response.setId(node.getId());
         response.setTopicId(node.getTopicId());
@@ -149,6 +207,26 @@ public class OpinionNodeController {
         response.setFolded(node.getFolded());
         response.setCreatedAt(node.getCreatedAt());
         response.setUpdatedAt(node.getUpdatedAt());
+        response.setStats(toStatsResponse(stats));
+        return response;
+    }
+
+    private OpinionNodeStatsResponse toStatsResponse(OpinionNodeStats stats) {
+        if (stats == null) {
+            return null;
+        }
+        OpinionNodeStatsResponse response = new OpinionNodeStatsResponse();
+        response.setOpinionId(stats.getOpinionId());
+        response.setLikeCount(stats.getLikeCount());
+        response.setReplyCount(stats.getReplyCount());
+        response.setUniqueReplyUserCount(stats.getUniqueReplyUserCount());
+        response.setWAgree(stats.getWAgree());
+        response.setWNeutral(stats.getWNeutral());
+        response.setWDisagree(stats.getWDisagree());
+        response.setOpinionEntropy(stats.getOpinionEntropy());
+        response.setEngagementWeight(stats.getEngagementWeight());
+        response.setFreshnessFactor(stats.getFreshnessFactor());
+        response.setFinalScore(stats.getFinalScore());
         return response;
     }
 }

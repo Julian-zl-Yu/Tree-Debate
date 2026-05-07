@@ -19,5 +19,6 @@ public class OpinionNodeResponse {
     private Boolean folded;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private OpinionNodeStatsResponse stats;
     private List<OpinionNodeResponse> children = new ArrayList<>();
 }

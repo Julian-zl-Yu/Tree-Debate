@@ -49,8 +49,11 @@ public class TopicController {
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "10") int size,
                                     @RequestParam(required = false) String keyword) {
+        // pagination
         if (size > 50) size = 50;
         Page<Topic> topicPage = new Page<>(page + 1L, size);
+
+        // Build query
         LambdaQueryWrapper<Topic> query = new LambdaQueryWrapper<Topic>()
                 .orderByDesc(Topic::getCreatedAt);
 
@@ -61,13 +64,18 @@ public class TopicController {
             query.like(Topic::getTitle, keyword);
         }
 
+        // Execute DB query
         Page<Topic> result = topicMapper.selectPage(topicPage, query);
+
+        // Batch load all authors to avoid N+1 query problem
         Map<Long, User> usersById = loadUsers(result.getRecords().stream()
                 .map(Topic::getAuthorId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet()));
 
+        // DB model -> response DTO
         Page<TopicResponse> response = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+
         response.setRecords(result.getRecords().stream()
                 .map(topic -> toResponse(topic, usersById.get(topic.getAuthorId())))
                 .toList());
@@ -79,15 +87,18 @@ public class TopicController {
     public ResponseEntity<?> create(@Valid @RequestBody TopicCreateRequest dto,
                                     Authentication authentication) {
         User currentUser = currentUser(authentication);
-        if (currentUser == null) {
+
+        if (currentUser == null) { // reject if not logged in
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
+        //create new topic entity
         Topic topic = new Topic();
         topic.setCategory(dto.getCategory());
         topic.setTitle(dto.getTitle());
         topic.setContent(dto.getContent());
         topic.setAuthorId(currentUser.getId());
+        //insert into DB
         topicMapper.insert(topic);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(topic, currentUser));
@@ -97,13 +108,17 @@ public class TopicController {
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable Long id) {
         Topic topic = topicMapper.selectById(id);
+
         if (topic == null) {
             return ResponseEntity.notFound().build();
         }
+
         User author = topic.getAuthorId() == null ? null : userMapper.selectById(topic.getAuthorId());
         return ResponseEntity.ok(toResponse(topic, author));
     }
 
+
+    // Resolve current logged-in user from Spring Security context
     private User currentUser(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return null;
@@ -112,6 +127,7 @@ public class TopicController {
                 .eq(User::getUsername, authentication.getName()));
     }
 
+    // Batch load users to avoid repeated DB queries
     private Map<Long, User> loadUsers(Iterable<Long> userIds) {
         java.util.List<Long> ids = new java.util.ArrayList<>();
         userIds.forEach(ids::add);
@@ -122,6 +138,7 @@ public class TopicController {
                 .collect(Collectors.toMap(User::getId, Function.identity()));
     }
 
+    // Topic -> API response object
     private TopicResponse toResponse(Topic topic, User author) {
         TopicResponse response = new TopicResponse();
         response.setId(topic.getId());
