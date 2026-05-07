@@ -13,6 +13,10 @@ public class User {
     private String username;
     private String password;
     private Boolean enabled;
+    @TableField("user_level")
+    private UserLevel userLevel;
+    @TableField("received_like_user_count")
+    private Integer receivedLikeUserCount;
     @TableField("created_at")
     private LocalDateTime createdAt;
 }

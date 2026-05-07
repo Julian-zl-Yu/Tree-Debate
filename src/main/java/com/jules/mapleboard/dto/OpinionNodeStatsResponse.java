@@ -8,6 +8,10 @@ public class OpinionNodeStatsResponse {
     private Integer likeCount;
     private Integer replyCount;
     private Integer uniqueReplyUserCount;
+    private Double reportScoreSpam;
+    private Double reportScoreHarassment;
+    private Double reportScoreOfftopic;
+    private Double commentWeight;
     private Double wAgree;
     private Double wNeutral;
     private Double wDisagree;

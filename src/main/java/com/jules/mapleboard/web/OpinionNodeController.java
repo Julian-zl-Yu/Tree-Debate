@@ -3,6 +3,7 @@ package com.jules.mapleboard.web;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jules.mapleboard.domain.OpinionNode;
 import com.jules.mapleboard.domain.OpinionNodeStats;
+import com.jules.mapleboard.dto.OpinionReportCreateRequest;
 import com.jules.mapleboard.domain.Topic;
 import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.dto.OpinionNodeCreateRequest;
@@ -110,7 +111,7 @@ public class OpinionNodeController {
         opinionNodeMapper.insert(node);
         OpinionNodeStats nodeStats = statsService.initializeStats(node.getId());
         if (parent != null) {
-            statsService.recordReply(parent, dto.getStance());
+            statsService.recordReply(parent, dto.getStance(), currentUser.getId());
         }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(node, currentUser, nodeStats));
@@ -133,6 +134,28 @@ public class OpinionNodeController {
 
         OpinionNodeStats stats = statsService.recordLike(opinion, currentUser.getId());
         return ResponseEntity.ok(toStatsResponse(stats));
+    }
+
+    @Operation(summary = "Report opinion node")
+    @PostMapping("/{opinionId}/reports")
+    public ResponseEntity<?> report(@PathVariable Long topicId,
+                                    @PathVariable Long opinionId,
+                                    @Valid @RequestBody OpinionReportCreateRequest dto,
+                                    Authentication authentication) {
+        User currentUser = currentUser(authentication);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        OpinionNode opinion = opinionNodeMapper.selectById(opinionId);
+        if (opinion == null || !topicId.equals(opinion.getTopicId())) {
+            return ResponseEntity.notFound().build();
+        }
+
+        OpinionNodeStats stats = statsService.recordReport(opinion, currentUser, dto.getReportType(), dto.getReason());
+        OpinionNode updatedOpinion = opinionNodeMapper.selectById(opinionId);
+        OpinionNodeResponse response = toResponse(updatedOpinion, userMapper.selectById(updatedOpinion.getAuthorId()), stats);
+        return ResponseEntity.ok(response);
     }
 
     private User currentUser(Authentication authentication) {
@@ -220,6 +243,10 @@ public class OpinionNodeController {
         response.setLikeCount(stats.getLikeCount());
         response.setReplyCount(stats.getReplyCount());
         response.setUniqueReplyUserCount(stats.getUniqueReplyUserCount());
+        response.setReportScoreSpam(stats.getReportScoreSpam());
+        response.setReportScoreHarassment(stats.getReportScoreHarassment());
+        response.setReportScoreOfftopic(stats.getReportScoreOfftopic());
+        response.setCommentWeight(stats.getCommentWeight());
         response.setWAgree(stats.getWAgree());
         response.setWNeutral(stats.getWNeutral());
         response.setWDisagree(stats.getWDisagree());
