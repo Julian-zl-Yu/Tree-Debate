@@ -179,7 +179,8 @@ public class OpinionNodeController {
         }
 
         OpinionNodeStats stats = statsService.recordLike(opinion, currentUser.getId());
-        return ResponseEntity.ok(toStatsResponse(stats));
+        OpinionNode updatedOpinion = opinionNodeMapper.selectById(opinionId);
+        return ResponseEntity.ok(toResponse(updatedOpinion, userMapper.selectById(updatedOpinion.getAuthorId()), stats));
     }
 
     @Operation(summary = "Report opinion node")

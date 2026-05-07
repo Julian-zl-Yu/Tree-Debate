@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jules.mapleboard.domain.Topic;
 import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.dto.TopicCreateRequest;
+import com.jules.mapleboard.dto.TopicFeedResponse;
 import com.jules.mapleboard.dto.TopicResponse;
 import com.jules.mapleboard.mapper.TopicMapper;
 import com.jules.mapleboard.mapper.UserMapper;
@@ -44,6 +45,19 @@ public class TopicController {
         this.topicMapper = topicMapper;
         this.userMapper = userMapper;
         this.sensitiveWordFilter = sensitiveWordFilter;
+    }
+
+    @Operation(summary = "List topic feed without exposing scoring internals")
+    @GetMapping("/feed")
+    public Page<TopicFeedResponse> feed(@RequestParam(defaultValue = "HOT") String sort,
+                                        @RequestParam(required = false) String category,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "20") int size,
+                                        @RequestParam(required = false) String keyword) {
+        if (size > 50) size = 50;
+        String normalizedSort = sort == null ? "HOT" : sort.trim().toUpperCase();
+        Page<TopicFeedResponse> topicPage = new Page<>(page + 1L, size);
+        return topicMapper.selectFeed(topicPage, normalizedSort, category, keyword);
     }
 
     @Operation(summary = "List topics")

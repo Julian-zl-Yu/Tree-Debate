@@ -1,5 +1,6 @@
 package com.jules.mapleboard.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.jules.mapleboard.domain.Stance;
 import lombok.Data;
 
@@ -19,6 +20,7 @@ public class OpinionNodeResponse {
     private Boolean folded;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    @JsonIgnore
     private OpinionNodeStatsResponse stats;
     private List<OpinionNodeResponse> children = new ArrayList<>();
 }
