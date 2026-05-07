@@ -66,6 +66,8 @@ a {
 
 .nav-link,
 .icon-text-button,
+.primary-link,
+.sidebar-create,
 .opinion-actions button,
 .composer button,
 .form-page button,
@@ -81,6 +83,15 @@ a {
 .segmented button.active {
   border-color: #2b7a78;
   background: #e8f5f4;
+}
+
+.primary-link,
+.sidebar-create {
+  justify-content: center;
+  background: #2b7a78;
+  border-color: #2b7a78;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .main {
@@ -115,6 +126,34 @@ a {
   justify-content: space-between;
   padding: 14px;
   border-bottom: 1px solid #e6ecef;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #edf1f3;
+  color: #667780;
+  overflow-x: auto;
+}
+
+.category-row button,
+.sidebar-block button {
+  border: 1px solid #d7dee2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3d4b52;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.category-row .category-active,
+.sidebar-block .category-active {
+  border-color: #2b7a78;
+  background: #e8f5f4;
+  color: #1c5b59;
+  font-weight: 700;
 }
 
 .segmented {
@@ -160,6 +199,11 @@ a {
   color: #5f6f78;
 }
 
+.topic-score-rail span {
+  color: #7b8b93;
+  font-size: 12px;
+}
+
 .topic-meta,
 .opinion-meta,
 .topic-footer {
@@ -187,8 +231,19 @@ a {
 }
 
 .sidebar {
-  padding: 16px;
+  display: grid;
+  gap: 14px;
   align-self: start;
+  padding: 16px;
+}
+
+.sidebar-block {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-block h3 {
+  margin: 0 0 4px;
 }
 
 .detail-layout {
@@ -311,6 +366,26 @@ a {
   gap: 12px;
 }
 
+.form-page label {
+  display: grid;
+  gap: 6px;
+  color: #34434b;
+  font-weight: 700;
+}
+
+.form-page select {
+  width: 100%;
+  border: 1px solid #d7dee2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.form-hint {
+  color: #6b7d85;
+  font-size: 13px;
+}
+
 .auth-page {
   max-width: 420px;
 }
@@ -322,6 +397,39 @@ a {
 
 .status {
   padding: 18px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 42px 18px;
+  text-align: center;
+}
+
+.empty-state h2 {
+  margin: 0;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+}
+
+.pager button {
+  border: 1px solid #d7dee2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px 12px;
+}
+
+.pager button:disabled,
+.form-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .admin-page {
@@ -372,8 +480,13 @@ a {
 
   .form-row,
   .feed-toolbar,
+  .pager,
   .score-grid {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .search-box {
+    min-width: 0;
   }
 }

@@ -17,10 +17,12 @@ export function AppLayout() {
             <Plus size={18} />
             New Topic
           </NavLink>
-          <NavLink to="/admin/reports" className="nav-link">
-            <Shield size={18} />
-            Admin
-          </NavLink>
+          {token && (
+            <NavLink to="/admin/reports" className="nav-link">
+              <Shield size={18} />
+              Admin
+            </NavLink>
+          )}
           {token ? (
             <button className="icon-text-button" onClick={logout} type="button">
               <LogOut size={18} />
