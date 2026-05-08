@@ -72,6 +72,7 @@ a {
 .composer button,
 .form-page button,
 .report-panel button,
+.report-detail-row button,
 .admin-user-tools button,
 .segmented button {
   border: 1px solid #d7dee2;
@@ -438,6 +439,7 @@ a {
 .form-page button:disabled,
 .report-panel button:disabled,
 .admin-user-tools button:disabled,
+.report-detail-row button:disabled,
 .opinion-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -452,6 +454,20 @@ a {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.admin-module-tabs {
+  justify-self: start;
+}
+
+.admin-submodule-header {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-submodule-header h2,
+.admin-submodule-header p {
+  margin: 0;
 }
 
 .admin-filters,
@@ -473,6 +489,10 @@ a {
   max-width: 140px;
 }
 
+.admin-search-box {
+  min-width: min(360px, 100%);
+}
+
 .admin-list {
   display: grid;
   gap: 12px;
@@ -486,8 +506,64 @@ a {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  margin-top: 10px;
   color: #34434b;
   font-size: 13px;
+}
+
+.score-grid-primary span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 1px solid #edf1f3;
+  border-radius: 8px;
+  background: #f9fbfb;
+  padding: 10px;
+}
+
+.score-grid-primary strong {
+  color: #667780;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.score-grid-primary b {
+  color: #182026;
+  font-size: 18px;
+}
+
+.report-score-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  color: #667780;
+}
+
+.report-detail-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid #e6ecef;
+  padding-top: 12px;
+}
+
+.report-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid #edf1f3;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.report-detail-row p {
+  margin: 6px 0 0;
+}
+
+.report-detail-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 @media (max-width: 860px) {
@@ -512,6 +588,7 @@ a {
   .feed-toolbar,
   .admin-filters,
   .admin-user-tools,
+  .report-detail-row,
   .pager,
   .score-grid {
     grid-template-columns: 1fr;

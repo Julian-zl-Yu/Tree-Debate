@@ -10,6 +10,7 @@ import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.dto.OpinionNodeCreateRequest;
 import com.jules.mapleboard.dto.OpinionNodeResponse;
 import com.jules.mapleboard.dto.OpinionNodeStatsResponse;
+import com.jules.mapleboard.exception.DuplicateOpinionReportException;
 import com.jules.mapleboard.mapper.OpinionNodeMapper;
 import com.jules.mapleboard.mapper.TopicMapper;
 import com.jules.mapleboard.mapper.UserMapper;
@@ -202,7 +203,12 @@ public class OpinionNodeController {
             return ResponseEntity.badRequest().body("Report reason contains sensitive words.");
         }
 
-        OpinionNodeStats stats = statsService.recordReport(opinion, currentUser, dto.getReportType(), dto.getReason());
+        OpinionNodeStats stats;
+        try {
+            stats = statsService.recordReport(opinion, currentUser, dto.getReportType(), dto.getReason());
+        } catch (DuplicateOpinionReportException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+        }
         OpinionNode updatedOpinion = opinionNodeMapper.selectById(opinionId);
         OpinionNodeResponse response = toResponse(updatedOpinion, userMapper.selectById(updatedOpinion.getAuthorId()), stats);
         return ResponseEntity.ok(response);

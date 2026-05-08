@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useCurrentUser } from '../auth/useCurrentUser';
 import { OpinionTree, stances } from '../components/OpinionTree';
 import { ErrorState, LoadingState } from '../components/Status';
-import { formatDateTime } from '../utils/format';
+import { excerpt, formatDateTime } from '../utils/format';
 
 type ComposerState =
   | { mode: 'new' }
@@ -72,10 +72,11 @@ export function TopicDetailPage() {
       });
     },
     onSuccess: () => {
+      const reportedId = reportTarget?.id;
       setReportTarget(null);
       setReportReason('');
       setReportType('SPAM');
-      setMessage('Report submitted.');
+      setMessage(reportedId ? `Report submitted for opinion #${reportedId}.` : 'Report submitted.');
       invalidate();
     },
     onError: (error) => handleActionError(error)
@@ -185,7 +186,10 @@ export function TopicDetailPage() {
 
       {reportTarget && (
         <section className="report-panel">
-          <h2>Report opinion by {reportTarget.author}</h2>
+          <h2>
+            Report opinion #{reportTarget.id} by {reportTarget.author}
+          </h2>
+          <p className="form-hint">{excerpt(reportTarget.content, 120)}</p>
           <div className="form-row">
             <select value={reportType} onChange={(event) => setReportType(event.target.value as ReportType)}>
               {reportTypes.map((item) => (

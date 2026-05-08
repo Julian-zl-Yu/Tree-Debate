@@ -3,6 +3,7 @@ package com.jules.mapleboard.mapper;
 import com.jules.mapleboard.domain.UserReceivedLikeUser;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
@@ -19,5 +20,5 @@ public interface UserReceivedLikeUserMapper {
             WHERE author_id = #{authorId}
               AND liker_id = #{likerId}
             """)
-    long countByAuthorIdAndLikerId(Long authorId, Long likerId);
+    long countByAuthorIdAndLikerId(@Param("authorId") Long authorId, @Param("likerId") Long likerId);
 }

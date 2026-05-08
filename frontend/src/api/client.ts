@@ -1,4 +1,15 @@
-import type { AdminReportedOpinion, CurrentUser, OpinionNode, Page, ReportType, Stance, Topic, TopicFeedItem } from './types';
+import type {
+  AdminOpinionReport,
+  AdminReportedOpinion,
+  AdminTopic,
+  CurrentUser,
+  OpinionNode,
+  Page,
+  ReportType,
+  Stance,
+  Topic,
+  TopicFeedItem
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -66,6 +77,10 @@ export const api = {
     }),
   reportedOpinions: (params: URLSearchParams) =>
     request<Page<AdminReportedOpinion>>(`/api/admin/reported-opinions?${params}`),
+  adminTopics: (params: URLSearchParams) => request<Page<AdminTopic>>(`/api/admin/topics?${params}`),
+  opinionReports: (opinionId: number) => request<AdminOpinionReport[]>(`/api/admin/opinions/${opinionId}/reports`),
+  deleteReport: (id: number) => request<unknown>(`/api/admin/reports/${id}`, { method: 'DELETE' }),
+  deleteTopic: (id: number) => request<unknown>(`/api/admin/topics/${id}`, { method: 'DELETE' }),
   foldOpinion: (id: number) => request<unknown>(`/api/admin/opinions/${id}/fold`, { method: 'POST' }),
   unfoldOpinion: (id: number) => request<unknown>(`/api/admin/opinions/${id}/unfold`, { method: 'POST' }),
   banUser: (id: number) => request<unknown>(`/api/admin/users/${id}/ban`, { method: 'POST' }),

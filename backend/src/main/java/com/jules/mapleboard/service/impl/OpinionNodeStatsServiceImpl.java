@@ -11,6 +11,7 @@ import com.jules.mapleboard.domain.Stance;
 import com.jules.mapleboard.domain.User;
 import com.jules.mapleboard.domain.UserLevel;
 import com.jules.mapleboard.domain.UserReceivedLikeUser;
+import com.jules.mapleboard.exception.DuplicateOpinionReportException;
 import com.jules.mapleboard.mapper.OpinionLikeMapper;
 import com.jules.mapleboard.mapper.OpinionNodeStatsMapper;
 import com.jules.mapleboard.mapper.OpinionNodeMapper;
@@ -122,6 +123,7 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
         }
 
         stats.setLikeCount(value(stats.getLikeCount()) + 1);
+        statsMapper.updateById(stats);
         recordReceivedLikeUser(opinion, userId);
         recalculateNodeAndAncestors(opinion);
         stats = statsMapper.selectById(opinion.getId());
@@ -143,7 +145,7 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
         try {
             reportMapper.insert(report);
         } catch (DuplicateKeyException ignored) {
-            return statsMapper.selectById(opinion.getId());
+            throw new DuplicateOpinionReportException();
         }
 
         double weight = report.getWeight().doubleValue();
@@ -155,7 +157,7 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
             stats.setReportScoreOfftopic(value(stats.getReportScoreOfftopic()) + weight);
         }
 
-        boolean shouldFold = shouldFold(stats);
+        boolean shouldFold = Boolean.TRUE.equals(opinion.getFolded()) || shouldFold(stats);
         recalculate(stats, opinion, shouldFold);
         statsMapper.updateById(stats);
 
@@ -166,6 +168,31 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
         }
 
         return stats;
+    }
+
+    @Override
+    @Transactional
+    public OpinionNodeStats deleteReport(Long reportId) {
+        OpinionReport report = reportMapper.selectById(reportId);
+        if (report == null) {
+            return null;
+        }
+
+        OpinionNode opinion = opinionNodeMapper.selectById(report.getOpinionId());
+        reportMapper.deleteById(reportId);
+        if (opinion == null) {
+            return null;
+        }
+
+        OpinionNodeStats stats = initializeStats(opinion.getId());
+        recomputeReportScores(stats, opinion.getId());
+        boolean shouldFold = shouldFold(stats);
+        opinion.setFolded(shouldFold);
+        opinionNodeMapper.updateById(opinion);
+        recalculate(stats, opinion, shouldFold);
+        statsMapper.updateById(stats);
+        recalculateNodeAndAncestors(opinion);
+        return statsMapper.selectById(opinion.getId());
     }
 
     @Override
@@ -227,6 +254,25 @@ public class OpinionNodeStatsServiceImpl implements OpinionNodeStatsService {
         return value(stats.getReportScoreSpam()) >= SPAM_FOLD_THRESHOLD
                 || value(stats.getReportScoreHarassment()) >= HARASSMENT_FOLD_THRESHOLD
                 || value(stats.getReportScoreOfftopic()) >= OFFTOPIC_FOLD_THRESHOLD;
+    }
+
+    private void recomputeReportScores(OpinionNodeStats stats, Long opinionId) {
+        stats.setReportScoreSpam(0.0);
+        stats.setReportScoreHarassment(0.0);
+        stats.setReportScoreOfftopic(0.0);
+
+        java.util.List<OpinionReport> reports = reportMapper.selectList(new LambdaQueryWrapper<OpinionReport>()
+                .eq(OpinionReport::getOpinionId, opinionId));
+        for (OpinionReport report : reports) {
+            double weight = report.getWeight() == null ? 0.0 : report.getWeight().doubleValue();
+            if (report.getReportType() == ReportType.SPAM) {
+                stats.setReportScoreSpam(value(stats.getReportScoreSpam()) + weight);
+            } else if (report.getReportType() == ReportType.HARASSMENT) {
+                stats.setReportScoreHarassment(value(stats.getReportScoreHarassment()) + weight);
+            } else if (report.getReportType() == ReportType.OFFTOPIC) {
+                stats.setReportScoreOfftopic(value(stats.getReportScoreOfftopic()) + weight);
+            }
+        }
     }
 
     private void recalculateNodeAndAncestors(OpinionNode node) {

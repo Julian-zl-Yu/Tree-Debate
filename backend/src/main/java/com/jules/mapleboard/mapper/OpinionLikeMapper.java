@@ -3,6 +3,7 @@ package com.jules.mapleboard.mapper;
 import com.jules.mapleboard.domain.OpinionLike;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
@@ -19,5 +20,5 @@ public interface OpinionLikeMapper {
             WHERE opinion_id = #{opinionId}
               AND user_id = #{userId}
             """)
-    long countByOpinionIdAndUserId(Long opinionId, Long userId);
+    long countByOpinionIdAndUserId(@Param("opinionId") Long opinionId, @Param("userId") Long userId);
 }

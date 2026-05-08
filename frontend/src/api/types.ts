@@ -82,3 +82,32 @@ export type AdminReportedOpinion = {
   freshnessFactor: number;
   finalScore: number;
 };
+
+export type AdminOpinionReport = {
+  id: number;
+  opinionId: number;
+  reporterId: number;
+  reporter: string;
+  reportType: ReportType;
+  weight: number;
+  reason: string | null;
+  createdAt: string;
+};
+
+export type AdminTopic = {
+  id: number;
+  category: string;
+  title: string;
+  content: string;
+  authorId: number;
+  author: string;
+  createdAt: string;
+  opinionCount: number;
+  replyCount: number;
+  foldedOpinionCount: number;
+  reportedOpinionCount: number;
+  opinionEntropy: number;
+  engagementWeight: number;
+  freshnessFactor: number;
+  finalScore: number;
+};
