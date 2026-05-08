@@ -48,6 +48,8 @@ export type OpinionNode = {
   authorId: number;
   author: string;
   stance: Stance;
+  effectiveTopicStance: Stance;
+  topicStanceExplicit: boolean;
   content: string;
   folded: boolean;
   createdAt: string;
@@ -63,6 +65,8 @@ export type AdminReportedOpinion = {
   authorId: number;
   author: string;
   stance: Stance;
+  effectiveTopicStance: Stance;
+  topicStanceExplicit: boolean;
   content: string;
   folded: boolean;
   createdAt: string;

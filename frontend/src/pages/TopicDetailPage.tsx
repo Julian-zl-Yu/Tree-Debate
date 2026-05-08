@@ -16,6 +16,19 @@ type ComposerState =
 
 const reportTypes: ReportType[] = ['SPAM', 'HARASSMENT', 'OFFTOPIC'];
 
+function findOpinionNode(nodes: OpinionNode[], id: number): OpinionNode | null {
+  for (const node of nodes) {
+    if (node.id === id) {
+      return node;
+    }
+    const childMatch = findOpinionNode(node.children, id);
+    if (childMatch) {
+      return childMatch;
+    }
+  }
+  return null;
+}
+
 export function TopicDetailPage() {
   const { topicId = '' } = useParams();
   const navigate = useNavigate();
@@ -25,6 +38,7 @@ export function TopicDetailPage() {
   const queryClient = useQueryClient();
   const [composer, setComposer] = useState<ComposerState>({ mode: 'new' });
   const [stance, setStance] = useState<Stance>('AGREE');
+  const [explicitTopicStance, setExplicitTopicStance] = useState<Stance | ''>('');
   const [content, setContent] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<OpinionNode | null>(null);
@@ -39,17 +53,22 @@ export function TopicDetailPage() {
 
   const saveOpinion = useMutation({
     mutationFn: () => {
+      const body = {
+        stance,
+        content,
+        ...(needsExplicitTopicStance() && explicitTopicStance ? { topicStance: explicitTopicStance } : {})
+      };
       if (composer.mode === 'edit') {
-        return api.updateOpinion(topicId, composer.node.id, { stance, content });
+        return api.updateOpinion(topicId, composer.node.id, body);
       }
       return api.createOpinion(topicId, {
         parentId: composer.mode === 'reply' ? composer.parent.id : null,
-        stance,
-        content
+        ...body
       });
     },
     onSuccess: () => {
       setContent('');
+      setExplicitTopicStance('');
       setComposer({ mode: 'new' });
       setMessage(null);
       invalidate();
@@ -98,6 +117,7 @@ export function TopicDetailPage() {
     setMessage(null);
     setComposer({ mode: 'reply', parent: node });
     setStance('AGREE');
+    setExplicitTopicStance('');
     setContent('');
   }
 
@@ -113,7 +133,23 @@ export function TopicDetailPage() {
     setMessage(null);
     setComposer({ mode: 'edit', node });
     setStance(node.stance);
+    setExplicitTopicStance(node.topicStanceExplicit ? node.effectiveTopicStance : '');
     setContent(node.content);
+  }
+
+  function currentComposerParent() {
+    if (composer.mode === 'reply') {
+      return composer.parent;
+    }
+    if (composer.mode === 'edit' && composer.node.parentId != null) {
+      return findOpinionNode(opinions.data ?? [], composer.node.parentId);
+    }
+    return null;
+  }
+
+  function needsExplicitTopicStance() {
+    const parent = currentComposerParent();
+    return Boolean(parent && parent.effectiveTopicStance === 'NEUTRAL' && stance !== 'NEUTRAL');
   }
 
   function startReport(node: OpinionNode) {
@@ -165,7 +201,11 @@ export function TopicDetailPage() {
               </option>
             ))}
           </select>
-          <button disabled={!token || !content.trim() || saveOpinion.isPending} onClick={() => saveOpinion.mutate()} type="button">
+          <button
+            disabled={!token || !content.trim() || (needsExplicitTopicStance() && !explicitTopicStance) || saveOpinion.isPending}
+            onClick={() => saveOpinion.mutate()}
+            type="button"
+          >
             {saveOpinion.isPending ? 'Saving' : composer.mode === 'edit' ? 'Save' : 'Submit'}
           </button>
           {composer.mode !== 'new' && (
@@ -174,6 +214,7 @@ export function TopicDetailPage() {
               onClick={() => {
                 setComposer({ mode: 'new' });
                 setContent('');
+                setExplicitTopicStance('');
                 setMessage(null);
               }}
             >
@@ -181,6 +222,20 @@ export function TopicDetailPage() {
             </button>
           )}
         </div>
+        {needsExplicitTopicStance() && (
+          <label className="topic-stance-row">
+            Topic stance
+            <select value={explicitTopicStance} onChange={(event) => setExplicitTopicStance(event.target.value as Stance | '')}>
+              <option value="">Select stance on the topic</option>
+              {stances.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+            <span className="form-hint">This branch is neutral, so your topic-level stance cannot be inferred.</span>
+          </label>
+        )}
         <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="Write your opinion" />
       </section>
 

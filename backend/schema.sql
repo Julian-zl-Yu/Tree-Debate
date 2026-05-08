@@ -78,6 +78,8 @@ CREATE TABLE opinion_nodes (
                                author_id BIGINT NOT NULL,
 
                                stance ENUM('AGREE', 'NEUTRAL', 'DISAGREE') NOT NULL,
+                               effective_topic_stance ENUM('AGREE', 'NEUTRAL', 'DISAGREE') NOT NULL,
+                               topic_stance_explicit TINYINT(1) NOT NULL DEFAULT 0,
 
                                content LONGTEXT NOT NULL,
 

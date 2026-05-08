@@ -52,17 +52,17 @@ public interface TopicMapper extends BaseMapper<Topic> {
                         COUNT(o.id) AS opinionCount,
                         COALESCE(SUM(CASE WHEN o.parent_id IS NULL THEN 0 ELSE 1 END), 0) AS replyCount,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'AGREE'
+                            WHEN o.effective_topic_stance = 'AGREE'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wAgree,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'NEUTRAL'
+                            WHEN o.effective_topic_stance = 'NEUTRAL'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wNeutral,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'DISAGREE'
+                            WHEN o.effective_topic_stance = 'DISAGREE'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wDisagree
@@ -148,17 +148,17 @@ public interface TopicMapper extends BaseMapper<Topic> {
                             ELSE 0
                         END), 0) AS reportedOpinionCount,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'AGREE'
+                            WHEN o.effective_topic_stance = 'AGREE'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wAgree,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'NEUTRAL'
+                            WHEN o.effective_topic_stance = 'NEUTRAL'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wNeutral,
                         COALESCE(SUM(CASE
-                            WHEN o.parent_id IS NULL AND o.stance = 'DISAGREE'
+                            WHEN o.effective_topic_stance = 'DISAGREE'
                                 THEN CASE WHEN o.is_folded = 1 THEN 0 ELSE COALESCE(s.comment_weight, 1) END
                             ELSE 0
                         END), 0) AS wDisagree

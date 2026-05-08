@@ -290,6 +290,14 @@ a {
   align-items: center;
 }
 
+.topic-stance-row {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: #34434b;
+  font-weight: 700;
+}
+
 .opinion-tree {
   display: grid;
   gap: 12px;

@@ -20,6 +20,8 @@ public interface OpinionNodeMapper extends BaseMapper<OpinionNode> {
                 o.author_id AS authorId,
                 u.username AS author,
                 o.stance,
+                o.effective_topic_stance AS effectiveTopicStance,
+                o.topic_stance_explicit AS topicStanceExplicit,
                 o.content,
                 o.is_folded AS folded,
                 o.created_at AS createdAt,

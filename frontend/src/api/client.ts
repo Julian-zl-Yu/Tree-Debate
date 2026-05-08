@@ -64,9 +64,9 @@ export const api = {
   createTopic: (body: { category: string; title: string; content: string }) =>
     request<Topic>('/api/topics', { method: 'POST', body: JSON.stringify(body) }),
   opinions: (topicId: string) => request<OpinionNode[]>(`/api/topics/${topicId}/opinions`),
-  createOpinion: (topicId: string, body: { parentId?: number | null; stance: Stance; content: string }) =>
+  createOpinion: (topicId: string, body: { parentId?: number | null; stance: Stance; topicStance?: Stance; content: string }) =>
     request<OpinionNode>(`/api/topics/${topicId}/opinions`, { method: 'POST', body: JSON.stringify(body) }),
-  updateOpinion: (topicId: string, opinionId: number, body: { stance: Stance; content: string }) =>
+  updateOpinion: (topicId: string, opinionId: number, body: { stance: Stance; topicStance?: Stance; content: string }) =>
     request<OpinionNode>(`/api/topics/${topicId}/opinions/${opinionId}`, { method: 'PUT', body: JSON.stringify(body) }),
   likeOpinion: (topicId: string, opinionId: number) =>
     request<OpinionNode>(`/api/topics/${topicId}/opinions/${opinionId}/likes`, { method: 'POST' }),

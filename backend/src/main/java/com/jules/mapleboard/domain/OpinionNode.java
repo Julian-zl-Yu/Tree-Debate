@@ -28,6 +28,13 @@ public class OpinionNode {
     private String author;
 
     private Stance stance;
+
+    @TableField("effective_topic_stance")
+    private Stance effectiveTopicStance;
+
+    @TableField("topic_stance_explicit")
+    private Boolean topicStanceExplicit;
+
     private String content;
 
     @TableField("is_folded")

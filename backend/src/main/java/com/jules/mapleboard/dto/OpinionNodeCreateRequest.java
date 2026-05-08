@@ -12,6 +12,8 @@ public class OpinionNodeCreateRequest {
     @NotNull
     private Stance stance;
 
+    private Stance topicStance;
+
     @NotBlank
     private String content;
 }

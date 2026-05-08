@@ -16,6 +16,8 @@ public class OpinionNodeResponse {
     private Long authorId;
     private String author;
     private Stance stance;
+    private Stance effectiveTopicStance;
+    private Boolean topicStanceExplicit;
     private String content;
     private Boolean folded;
     private LocalDateTime createdAt;

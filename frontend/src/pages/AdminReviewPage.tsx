@@ -136,6 +136,7 @@ function ReportedOpinionsModule() {
           <article className="admin-card" key={opinion.id}>
             <div className="opinion-meta">
               <StanceBadge stance={opinion.stance} />
+              <span>topic {opinion.effectiveTopicStance}</span>
               <span>u/{opinion.author}</span>
               <span>{opinion.topicTitle}</span>
               <span>{formatDateTime(opinion.createdAt)}</span>

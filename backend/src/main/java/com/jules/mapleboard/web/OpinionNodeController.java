@@ -3,6 +3,7 @@ package com.jules.mapleboard.web;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jules.mapleboard.domain.OpinionNode;
 import com.jules.mapleboard.domain.OpinionNodeStats;
+import com.jules.mapleboard.domain.Stance;
 import com.jules.mapleboard.dto.OpinionNodeUpdateRequest;
 import com.jules.mapleboard.dto.OpinionReportCreateRequest;
 import com.jules.mapleboard.domain.Topic;
@@ -118,12 +119,20 @@ public class OpinionNodeController {
                         .body("You can only reply to the same opinion once every 5 minutes.");
             }
         }
+        StanceResolution stanceResolution;
+        try {
+            stanceResolution = resolveEffectiveTopicStance(parent, dto.getStance(), dto.getTopicStance());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
 
         OpinionNode node = new OpinionNode();
         node.setTopicId(topicId);
         node.setParentId(dto.getParentId());
         node.setAuthorId(currentUser.getId());
         node.setStance(dto.getStance());
+        node.setEffectiveTopicStance(stanceResolution.effectiveTopicStance());
+        node.setTopicStanceExplicit(stanceResolution.explicit());
         node.setContent(dto.getContent());
         node.setFolded(false);
         opinionNodeMapper.insert(node);
@@ -158,8 +167,18 @@ public class OpinionNodeController {
         }
 
         opinion.setStance(dto.getStance());
+        OpinionNode parent = opinion.getParentId() == null ? null : opinionNodeMapper.selectById(opinion.getParentId());
+        StanceResolution stanceResolution;
+        try {
+            stanceResolution = resolveEffectiveTopicStance(parent, dto.getStance(), dto.getTopicStance());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+        opinion.setEffectiveTopicStance(stanceResolution.effectiveTopicStance());
+        opinion.setTopicStanceExplicit(stanceResolution.explicit());
         opinion.setContent(dto.getContent());
         opinionNodeMapper.updateById(opinion);
+        refreshDescendantEffectiveTopicStances(opinion);
         OpinionNodeStats stats = statsService.setFolded(opinion, Boolean.TRUE.equals(opinion.getFolded()));
         return ResponseEntity.ok(toResponse(opinion, currentUser, stats));
     }
@@ -240,6 +259,73 @@ public class OpinionNodeController {
         return count != null && count > 0;
     }
 
+    private StanceResolution resolveEffectiveTopicStance(OpinionNode parent, Stance stance, Stance explicitTopicStance) {
+        if (parent == null) {
+            return new StanceResolution(stance, false);
+        }
+        if (stance == Stance.NEUTRAL) {
+            return new StanceResolution(Stance.NEUTRAL, false);
+        }
+
+        Stance parentEffective = parent.getEffectiveTopicStance();
+        if (parentEffective == null) {
+            parentEffective = parent.getParentId() == null ? parent.getStance() : Stance.NEUTRAL;
+        }
+        if (parentEffective == Stance.NEUTRAL) {
+            if (explicitTopicStance == null) {
+                throw new IllegalArgumentException("topicStance is required when replying AGREE or DISAGREE to a neutral branch.");
+            }
+            return new StanceResolution(explicitTopicStance, true);
+        }
+        if (stance == Stance.AGREE) {
+            return new StanceResolution(parentEffective, false);
+        }
+        return new StanceResolution(invert(parentEffective), false);
+    }
+
+    private Stance resolveExistingChildEffectiveTopicStance(OpinionNode parent, OpinionNode child) {
+        if (Boolean.TRUE.equals(child.getTopicStanceExplicit()) && child.getEffectiveTopicStance() != null) {
+            return child.getEffectiveTopicStance();
+        }
+        if (child.getStance() == Stance.NEUTRAL) {
+            return Stance.NEUTRAL;
+        }
+        Stance parentEffective = parent.getEffectiveTopicStance();
+        if (parentEffective == null) {
+            parentEffective = parent.getParentId() == null ? parent.getStance() : Stance.NEUTRAL;
+        }
+        if (parentEffective == Stance.NEUTRAL) {
+            return Stance.NEUTRAL;
+        }
+        return child.getStance() == Stance.AGREE ? parentEffective : invert(parentEffective);
+    }
+
+    private Stance invert(Stance stance) {
+        if (stance == Stance.AGREE) {
+            return Stance.DISAGREE;
+        }
+        if (stance == Stance.DISAGREE) {
+            return Stance.AGREE;
+        }
+        return Stance.NEUTRAL;
+    }
+
+    private void refreshDescendantEffectiveTopicStances(OpinionNode parent) {
+        List<OpinionNode> children = opinionNodeMapper.selectList(new LambdaQueryWrapper<OpinionNode>()
+                .eq(OpinionNode::getParentId, parent.getId()));
+        for (OpinionNode child : children) {
+            Stance effectiveTopicStance = resolveExistingChildEffectiveTopicStance(parent, child);
+            if (!effectiveTopicStance.equals(child.getEffectiveTopicStance())) {
+                child.setEffectiveTopicStance(effectiveTopicStance);
+                opinionNodeMapper.updateById(child);
+            }
+            refreshDescendantEffectiveTopicStances(child);
+        }
+    }
+
+    private record StanceResolution(Stance effectiveTopicStance, boolean explicit) {
+    }
+
     // build N-ary tree from flat list using parent_id
     private List<OpinionNodeResponse> toTree(List<OpinionNode> nodes,
                                              Map<Long, User> usersById,
@@ -290,6 +376,8 @@ public class OpinionNodeController {
         response.setAuthorId(node.getAuthorId());
         response.setAuthor(author == null ? null : author.getUsername());
         response.setStance(node.getStance());
+        response.setEffectiveTopicStance(node.getEffectiveTopicStance());
+        response.setTopicStanceExplicit(node.getTopicStanceExplicit());
         response.setContent(node.getContent());
         response.setFolded(node.getFolded());
         response.setCreatedAt(node.getCreatedAt());

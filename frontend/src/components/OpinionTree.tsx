@@ -44,6 +44,7 @@ function OpinionBranch(props: OpinionBranchProps) {
       <div className="opinion-body">
         <div className="opinion-meta">
           <StanceBadge stance={node.stance} />
+          <span>topic {node.effectiveTopicStance}</span>
           <span>u/{node.author}</span>
           <span>{formatDateTime(node.createdAt)}</span>
           {node.folded && <span className="folded-label">Folded</span>}
