@@ -71,6 +71,8 @@ a {
 .opinion-actions button,
 .composer button,
 .form-page button,
+.report-panel button,
+.admin-user-tools button,
 .segmented button {
   border: 1px solid #d7dee2;
   border-radius: 8px;
@@ -109,6 +111,7 @@ a {
 .sidebar,
 .topic-hero,
 .composer,
+.report-panel,
 .form-page,
 .admin-card {
   border: 1px solid #dfe5e8;
@@ -253,13 +256,17 @@ a {
 
 .topic-hero,
 .composer,
+.report-panel,
 .form-page {
   padding: 18px;
 }
 
 .composer textarea,
+.report-panel textarea,
 .form-page textarea,
 .form-page input,
+.report-panel select,
+.admin-user-tools input,
 .composer select {
   width: 100%;
   border: 1px solid #d7dee2;
@@ -268,6 +275,7 @@ a {
 }
 
 .composer textarea,
+.report-panel textarea,
 .form-page textarea {
   min-height: 120px;
   resize: vertical;
@@ -427,7 +435,10 @@ a {
 }
 
 .pager button:disabled,
-.form-page button:disabled {
+.form-page button:disabled,
+.report-panel button:disabled,
+.admin-user-tools button:disabled,
+.opinion-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -441,6 +452,25 @@ a {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.admin-filters,
+.admin-user-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-user-tools {
+  border: 1px solid #dfe5e8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.admin-user-tools input {
+  max-width: 140px;
 }
 
 .admin-list {
@@ -480,6 +510,8 @@ a {
 
   .form-row,
   .feed-toolbar,
+  .admin-filters,
+  .admin-user-tools,
   .pager,
   .score-grid {
     grid-template-columns: 1fr;

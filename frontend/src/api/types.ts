@@ -31,6 +31,16 @@ export type Topic = {
 export type Stance = 'AGREE' | 'NEUTRAL' | 'DISAGREE';
 export type ReportType = 'SPAM' | 'HARASSMENT' | 'OFFTOPIC';
 
+export type CurrentUser = {
+  id: number;
+  username: string;
+  enabled: boolean;
+  userLevel: 'NEW' | 'OFFICIAL' | 'REPUTABLE' | 'ADMIN';
+  receivedLikeUserCount: number;
+  createdAt: string;
+  roles: string[];
+};
+
 export type OpinionNode = {
   id: number;
   topicId: number;
@@ -64,9 +74,9 @@ export type AdminReportedOpinion = {
   reportScoreHarassment: number;
   reportScoreOfftopic: number;
   commentWeight: number;
-  wagree: number;
-  wneutral: number;
-  wdisagree: number;
+  wAgree: number;
+  wNeutral: number;
+  wDisagree: number;
   opinionEntropy: number;
   engagementWeight: number;
   freshnessFactor: number;

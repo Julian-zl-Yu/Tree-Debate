@@ -1,4 +1,4 @@
-import type { AdminReportedOpinion, OpinionNode, Page, ReportType, Stance, Topic, TopicFeedItem } from './types';
+import type { AdminReportedOpinion, CurrentUser, OpinionNode, Page, ReportType, Stance, Topic, TopicFeedItem } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -47,6 +47,7 @@ export const api = {
     request<string>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { username: string; password: string }) =>
     request<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  me: () => request<CurrentUser>('/api/users/me'),
   feed: (params: URLSearchParams) => request<Page<TopicFeedItem>>(`/api/topics/feed?${params}`),
   topic: (id: string) => request<Topic>(`/api/topics/${id}`),
   createTopic: (body: { category: string; title: string; content: string }) =>
