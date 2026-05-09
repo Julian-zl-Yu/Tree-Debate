@@ -265,6 +265,10 @@ export function TopicDetailPage() {
       )}
 
       <OpinionTree
+        topicTitle={topic.data?.title ?? 'Topic'}
+        topicContent={topic.data?.content ?? ''}
+        topicCategory={topic.data?.category}
+        topicAuthor={topic.data?.author}
         nodes={opinions.data ?? []}
         currentUserId={currentUser.data?.id}
         onReply={startReply}
