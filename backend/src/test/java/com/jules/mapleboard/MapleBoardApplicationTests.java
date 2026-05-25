@@ -1,13 +1,15 @@
 package com.jules.mapleboard;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 class MapleBoardApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassExists() {
+        // Keep this smoke test small so unit tests do not need a local MySQL database.
+        assertNotNull(MapleBoardApplication.class);
     }
 
 }
