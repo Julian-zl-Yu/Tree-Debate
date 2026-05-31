@@ -13,7 +13,7 @@ export function AppLayout() {
       <header className="topbar">
         <Link to="/" className="brand">
           <Trees size={22} />
-          <span>MapleBoard</span>
+          <span>DebateTree</span>
         </Link>
         <nav className="nav">
           <NavLink to="/topics/new" className="nav-link">

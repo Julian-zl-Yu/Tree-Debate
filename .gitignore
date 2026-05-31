@@ -7,6 +7,7 @@ frontend/dist/
 frontend/.vite/
 frontend/.env
 frontend/.env.local
+tidb-data-import.sql
 *.log
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
