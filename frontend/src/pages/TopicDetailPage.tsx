@@ -5,6 +5,7 @@ import { ApiError, api } from '../api/client';
 import type { OpinionNode, ReportType, Stance } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { useCurrentUser } from '../auth/useCurrentUser';
+import { OpinionCanopyScene } from '../components/OpinionCanopyScene';
 import { OpinionTree, stances } from '../components/OpinionTree';
 import { ErrorState, LoadingState } from '../components/Status';
 import { excerpt, formatDateTime } from '../utils/format';
@@ -44,6 +45,7 @@ export function TopicDetailPage() {
   const [reportTarget, setReportTarget] = useState<OpinionNode | null>(null);
   const [reportType, setReportType] = useState<ReportType>('SPAM');
   const [reportReason, setReportReason] = useState('');
+  const [viewMode, setViewMode] = useState<'tree' | 'canopy'>('tree');
 
   const topic = useQuery({ queryKey: ['topic', topicId], queryFn: () => api.topic(topicId) });
   const opinions = useQuery({ queryKey: ['opinions', topicId], queryFn: () => api.opinions(topicId) });
@@ -264,21 +266,54 @@ export function TopicDetailPage() {
         </section>
       )}
 
-      <OpinionTree
-        topicTitle={topic.data?.title ?? 'Topic'}
-        topicContent={topic.data?.content ?? ''}
-        topicCategory={topic.data?.category}
-        topicAuthor={topic.data?.author}
-        nodes={opinions.data ?? []}
-        currentUserId={currentUser.data?.id}
-        onReply={startReply}
-        onEdit={startEdit}
-        onLike={(node) => {
-          if (!token) loginForAction();
-          else likeOpinion.mutate(node);
-        }}
-        onReport={startReport}
-      />
+      <section className="detail-view-toolbar">
+        <div>
+          <span className="eyebrow">Opinion map</span>
+          <h2>{viewMode === 'tree' ? 'Tree view' : 'Canopy view'}</h2>
+        </div>
+        <div className="segmented">
+          <button className={viewMode === 'tree' ? 'active' : ''} onClick={() => setViewMode('tree')} type="button">
+            Tree
+          </button>
+          <button className={viewMode === 'canopy' ? 'active' : ''} onClick={() => setViewMode('canopy')} type="button">
+            Canopy
+          </button>
+        </div>
+      </section>
+
+      {viewMode === 'tree' ? (
+        <OpinionTree
+          topicTitle={topic.data?.title ?? 'Topic'}
+          topicContent={topic.data?.content ?? ''}
+          topicCategory={topic.data?.category}
+          topicAuthor={topic.data?.author}
+          nodes={opinions.data ?? []}
+          currentUserId={currentUser.data?.id}
+          onReply={startReply}
+          onEdit={startEdit}
+          onLike={(node) => {
+            if (!token) loginForAction();
+            else likeOpinion.mutate(node);
+          }}
+          onReport={startReport}
+        />
+      ) : (
+        <OpinionCanopyScene
+          topicTitle={topic.data?.title ?? 'Topic'}
+          topicContent={topic.data?.content ?? ''}
+          topicCategory={topic.data?.category}
+          topicAuthor={topic.data?.author}
+          nodes={opinions.data ?? []}
+          currentUserId={currentUser.data?.id}
+          onReply={startReply}
+          onEdit={startEdit}
+          onLike={(node) => {
+            if (!token) loginForAction();
+            else likeOpinion.mutate(node);
+          }}
+          onReport={startReport}
+        />
+      )}
     </div>
   );
 }

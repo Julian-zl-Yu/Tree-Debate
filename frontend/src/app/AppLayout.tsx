@@ -1,5 +1,5 @@
 import { LogOut, Plus, Shield, Trees } from 'lucide-react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useCurrentUser } from '../auth/useCurrentUser';
 
@@ -7,6 +7,9 @@ export function AppLayout() {
   const { token, logout } = useAuth();
   const currentUser = useCurrentUser();
   const isAdmin = currentUser.data?.roles.includes('ROLE_ADMIN') ?? false;
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+  const isTopicDetail = location.pathname.startsWith('/topics/') && location.pathname !== '/topics/new';
 
   return (
     <div className="app-shell">
@@ -38,7 +41,7 @@ export function AppLayout() {
           )}
         </nav>
       </header>
-      <main className="main">
+      <main className={isHome ? 'main main-home' : isTopicDetail ? 'main main-detail' : 'main'}>
         <Outlet />
       </main>
     </div>

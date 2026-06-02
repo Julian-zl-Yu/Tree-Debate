@@ -1,5 +1,5 @@
 import { Flag, Heart, MessageSquare, Minus, Move, Pencil, Plus, RotateCcw } from 'lucide-react';
-import { useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import type { OpinionNode, Stance } from '../api/types';
 import { excerpt, formatDateTime } from '../utils/format';
 import { StanceBadge } from './StanceBadge';
@@ -50,11 +50,11 @@ type LayoutEdge = {
   stance: Stance;
 };
 
-const nodeWidth = 290;
-const nodeHeight = 174;
-const siblingGap = 72;
-const levelGap = 112;
-const canvasPadding = 96;
+const nodeWidth = 280;
+const nodeHeight = 212;
+const siblingGap = 48;
+const levelGap = 96;
+const canvasPadding = 112;
 const stanceColors: Record<Stance, string> = {
   AGREE: '#218552',
   NEUTRAL: '#6a7880',
@@ -67,6 +67,7 @@ export function OpinionTree(props: OpinionTreeProps) {
   const [scale, setScale] = useState(0.9);
   const [offset, setOffset] = useState({ x: 28, y: 28 });
   const [isDragging, setIsDragging] = useState(false);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<{ pointerId: number; startX: number; startY: number; offsetX: number; offsetY: number } | null>(null);
   const layout = useMemo(
     () => buildLayout(topicTitle, topicContent, topicCategory, topicAuthor, nodes, orientation),
@@ -74,17 +75,24 @@ export function OpinionTree(props: OpinionTreeProps) {
   );
   const nodeByKey = useMemo(() => new Map(layout.nodes.map((node) => [node.node.key, node])), [layout.nodes]);
 
+  useEffect(() => {
+    const nextView = initialView(layout.width, layout.height, orientation, canvasRef.current);
+    setScale(nextView.scale);
+    setOffset(nextView.offset);
+  }, [layout.width, layout.height, orientation]);
+
   function resetView() {
-    setScale(0.9);
-    setOffset({ x: 28, y: 28 });
+    const nextView = initialView(layout.width, layout.height, orientation, canvasRef.current);
+    setScale(nextView.scale);
+    setOffset(nextView.offset);
   }
 
   function zoomBy(delta: number) {
-    setScale((value) => Math.min(1.7, Math.max(0.45, Number((value + delta).toFixed(2)))));
+    setScale((value) => Math.min(1.7, Math.max(0.35, Number((value + delta).toFixed(2)))));
   }
 
   function zoomAtPoint(delta: number, anchorX: number, anchorY: number) {
-    const nextScale = Math.min(1.7, Math.max(0.45, Number((scale + delta).toFixed(2))));
+    const nextScale = Math.min(1.7, Math.max(0.35, Number((scale + delta).toFixed(2))));
     if (nextScale === scale) {
       return;
     }
@@ -172,6 +180,7 @@ export function OpinionTree(props: OpinionTreeProps) {
         onPointerUp={stopPan}
         onPointerCancel={stopPan}
         onWheel={handleWheel}
+        ref={canvasRef}
       >
         <div
           className="tree-stage"
@@ -182,22 +191,6 @@ export function OpinionTree(props: OpinionTreeProps) {
           }}
         >
           <svg className="tree-edges" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`}>
-            <defs>
-              {stances.map((stance) => (
-                <marker
-                  id={`tree-arrow-${stance.toLowerCase()}`}
-                  key={stance}
-                  markerHeight="8"
-                  markerWidth="8"
-                  orient="auto"
-                  refX="7"
-                  refY="4"
-                  viewBox="0 0 8 8"
-                >
-                  <path d="M0,0 L8,4 L0,8 Z" fill={stanceColors[stance]} />
-                </marker>
-              ))}
-            </defs>
             {layout.edges.map((edge) => {
               const child = nodeByKey.get(edge.childKey);
               const parent = nodeByKey.get(edge.parentKey);
@@ -206,10 +199,9 @@ export function OpinionTree(props: OpinionTreeProps) {
               }
               return (
                 <path
-                  className="tree-edge"
-                  d={edgePath(child, parent, orientation)}
+                  className={`tree-edge tree-edge-${edge.stance.toLowerCase()}`}
+                  d={edgePath(parent, child, orientation)}
                   key={`${edge.childKey}-${edge.parentKey}`}
-                  markerEnd={`url(#tree-arrow-${edge.stance.toLowerCase()})`}
                   stroke={stanceColors[edge.stance]}
                 />
               );
@@ -272,7 +264,7 @@ function MindMapNode(props: {
         <span>topic {opinion.effectiveTopicStance}</span>
         {opinion.folded && <span className="folded-label">Folded</span>}
       </div>
-      <p>{opinion.folded ? 'This opinion is folded pending moderation.' : excerpt(opinion.content, 112)}</p>
+      <p>{opinion.folded ? 'This opinion is folded pending moderation.' : excerpt(opinion.content, 96)}</p>
       <div className="mind-node-footer">
         <span>u/{opinion.author}</span>
         <span>{formatDateTime(opinion.createdAt)}</span>
@@ -280,22 +272,22 @@ function MindMapNode(props: {
       <div className="opinion-actions mind-node-actions">
         {!isOwner && (
           <button type="button" onClick={() => onReply(opinion)}>
-            <MessageSquare size={15} />
+            <MessageSquare size={14} />
             Reply
           </button>
         )}
         {isOwner && (
           <button type="button" onClick={() => onEdit(opinion)}>
-            <Pencil size={15} />
+            <Pencil size={14} />
             Edit
           </button>
         )}
         <button type="button" onClick={() => onLike(opinion)}>
-          <Heart size={15} />
+          <Heart size={14} />
           Like
         </button>
         <button type="button" onClick={() => onReport(opinion)}>
-          <Flag size={15} />
+          <Flag size={14} />
           Report
         </button>
       </div>
@@ -385,7 +377,7 @@ function place(
 ) {
   const centerOnSpan = start + branch.span / 2;
   const centerX = orientation === 'vertical' ? centerOnSpan : depth * (nodeWidth + levelGap);
-  const centerY = orientation === 'vertical' ? depth * (nodeHeight + levelGap) : centerOnSpan;
+  const centerY = orientation === 'vertical' ? -depth * (nodeHeight + levelGap) : centerOnSpan;
   nodes.push({ node: branch.node, centerX, centerY });
 
   const childTotal = branch.children.reduce((sum, child) => sum + child.span, 0) + Math.max(0, branch.children.length - 1) * siblingGap;
@@ -401,22 +393,44 @@ function place(
   }
 }
 
-function edgePath(child: LayoutNode, parent: LayoutNode, orientation: TreeOrientation) {
+function edgePath(parent: LayoutNode, child: LayoutNode, orientation: TreeOrientation) {
   if (orientation === 'vertical') {
-    const startX = child.centerX;
-    const startY = child.top;
-    const endX = parent.centerX;
-    const endY = parent.top + nodeHeight;
+    const startX = parent.centerX;
+    const startY = parent.node.type === 'topic' ? parent.top + 70 : parent.top + 90;
+    const endX = child.centerX;
+    const endY = child.top + nodeHeight - 48;
     const midY = (startY + endY) / 2;
     return `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
   }
 
-  const startX = child.left;
-  const startY = child.centerY;
-  const endX = parent.left + nodeWidth;
-  const endY = parent.centerY;
+  const startX = parent.left + nodeWidth - 38;
+  const startY = parent.centerY;
+  const endX = child.left + 46;
+  const endY = child.centerY;
   const midX = (startX + endX) / 2;
   return `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
 }
 
 export const stances: Stance[] = ['AGREE', 'NEUTRAL', 'DISAGREE'];
+
+function initialView(width: number, height: number, orientation: TreeOrientation, canvas: HTMLDivElement | null) {
+  const fallbackScale = 0.9;
+  const rect = canvas?.getBoundingClientRect();
+  if (!rect) {
+    return { scale: fallbackScale, offset: { x: 28, y: 28 } };
+  }
+  const scale = Math.min(
+    fallbackScale,
+    Math.max(0.35, Math.min((rect.width - 72) / width, (rect.height - 76) / height))
+  );
+  const centerX = Math.max(24, (rect.width - width * scale) / 2);
+  const centerY = Math.max(24, (rect.height - height * scale) / 2);
+  const bottomAlignedY = Math.max(28, rect.height - height * scale - 36);
+  return {
+    scale,
+    offset: {
+      x: centerX,
+      y: orientation === 'vertical' ? bottomAlignedY : centerY
+    }
+  };
+}

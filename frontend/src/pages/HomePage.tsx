@@ -1,85 +1,66 @@
-import { useQuery } from '@tanstack/react-query';
-import { Activity, Clock, Filter, Flame, GitBranch, Layers, MessageCircle, Plus, Search, TrendingUp, Users } from 'lucide-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { Clock, Eye, EyeOff, Filter, Flame, GitBranch, Moon, Plus, Search, Sun, TrendingUp } from 'lucide-react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { TopicFeedItem } from '../api/types';
+import { TopicForestScene } from '../components/TopicForestScene';
 import { ErrorState, LoadingState } from '../components/Status';
-import { excerpt, formatDateTime, pluralize } from '../utils/format';
 
 const sorts = ['HOT', 'NEW', 'CONTROVERSIAL'] as const;
 const categories = ['ALL', 'GENERAL', 'POLICY', 'TECH', 'LOCAL', 'CULTURE'] as const;
 
 function activityScore(topic: TopicFeedItem) {
-  return topic.opinionCount + topic.replyCount;
+  return (topic.opinionCount ?? 0) + (topic.replyCount ?? 0);
 }
 
 function rootOpinionCount(topic: TopicFeedItem) {
-  return Math.max(0, topic.opinionCount - topic.replyCount);
-}
-
-function discussionShape(topic: TopicFeedItem) {
-  const roots = rootOpinionCount(topic);
-  const replies = topic.replyCount;
-  const total = activityScore(topic);
-
-  if (total === 0) {
-    return { label: 'Open floor', detail: 'No opinions yet', tone: 'quiet' };
-  }
-  if (replies === 0) {
-    return { label: 'Fresh takes', detail: `${roots} root ${roots === 1 ? 'opinion' : 'opinions'}`, tone: 'fresh' };
-  }
-  if (replies >= roots * 2 && replies >= 6) {
-    return { label: 'Deep thread', detail: 'Replies are driving the debate', tone: 'deep' };
-  }
-  if (roots >= 4 && replies >= 4) {
-    return { label: 'Branching', detail: 'Multiple visible branches', tone: 'branching' };
-  }
-  if (total >= 14) {
-    return { label: 'Active debate', detail: 'Strong participation', tone: 'active' };
-  }
-  return { label: 'Forming', detail: 'Early discussion shape', tone: 'forming' };
-}
-
-function activityLabel(topic: TopicFeedItem) {
-  const score = activityScore(topic);
-  if (score >= 24) return 'Very active';
-  if (score >= 14) return 'Active';
-  if (score >= 6) return 'Building';
-  if (score > 0) return 'Starting';
-  return 'Waiting';
-}
-
-function ageLabel(value: string) {
-  const created = new Date(value).getTime();
-  const diffHours = Math.max(0, Math.floor((Date.now() - created) / 3_600_000));
-  if (diffHours < 1) return 'just now';
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const days = Math.floor(diffHours / 24);
-  return `${days}d ago`;
+  return Math.max(0, (topic.opinionCount ?? 0) - (topic.replyCount ?? 0));
 }
 
 export function HomePage() {
   const [sort, setSort] = useState<(typeof sorts)[number]>('HOT');
   const [category, setCategory] = useState<(typeof categories)[number]>('ALL');
   const [keyword, setKeyword] = useState('');
-  const [page, setPage] = useState(0);
-  const params = useMemo(() => {
-    const next = new URLSearchParams({ sort, page: String(page), size: '20' });
+  const [sceneTheme, setSceneTheme] = useState<'day' | 'night'>('day');
+  const [panelsHidden, setPanelsHidden] = useState(false);
+  const baseParams = useMemo(() => {
+    const next = new URLSearchParams({ sort, size: '20' });
     if (category !== 'ALL') next.set('category', category);
     if (keyword.trim()) next.set('keyword', keyword.trim());
     return next;
-  }, [sort, category, keyword, page]);
+  }, [sort, category, keyword]);
 
-  const feed = useQuery({
-    queryKey: ['feed', params.toString()],
-    queryFn: () => api.feed(params)
+  const feed = useInfiniteQuery({
+    queryKey: ['feed', baseParams.toString()],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams(baseParams);
+      params.set('page', String(pageParam));
+      return api.feed(params);
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const totalPages = lastPage.pages ?? Math.ceil((lastPage.total ?? 0) / Math.max(1, lastPage.size ?? 20));
+      return allPages.length < totalPages ? allPages.length : undefined;
+    }
   });
-  const records = feed.data?.records ?? [];
-  const totalPages = feed.data?.pages ?? Math.max(1, Math.ceil((feed.data?.total ?? 0) / (feed.data?.size ?? 20)));
+  const records = useMemo(() => {
+    const topicsById = new Map<number, TopicFeedItem>();
+    feed.data?.pages.forEach((pageData) => {
+      pageData.records.forEach((topic) => {
+        if (!topicsById.has(topic.id)) topicsById.set(topic.id, topic);
+      });
+    });
+    return [...topicsById.values()];
+  }, [feed.data?.pages]);
+  const totalTopicCount = feed.data?.pages[0]?.total ?? records.length;
+  const loadMoreTopics = useCallback(() => {
+    if (!feed.hasNextPage || feed.isFetchingNextPage) return;
+    void feed.fetchNextPage();
+  }, [feed.fetchNextPage, feed.hasNextPage, feed.isFetchingNextPage]);
   const feedSummary = useMemo(() => {
-    const opinions = records.reduce((sum, topic) => sum + topic.opinionCount, 0);
-    const replies = records.reduce((sum, topic) => sum + topic.replyCount, 0);
+    const opinions = records.reduce((sum, topic) => sum + (topic.opinionCount ?? 0), 0);
+    const replies = records.reduce((sum, topic) => sum + (topic.replyCount ?? 0), 0);
     const mostDiscussed = [...records].sort((a, b) => activityScore(b) - activityScore(a))[0];
     const newestActive = [...records]
       .filter((topic) => activityScore(topic) > 0)
@@ -96,7 +77,8 @@ export function HomePage() {
     const topCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'None';
 
     return {
-      topics: feed.data?.total ?? records.length,
+      topics: totalTopicCount,
+      loadedTopics: records.length,
       opinions,
       replies,
       topCategory,
@@ -104,20 +86,43 @@ export function HomePage() {
       newestActive,
       mostBranched
     };
-  }, [feed.data?.total, records]);
+  }, [records, totalTopicCount]);
 
   return (
-    <div className="page-grid">
-      <section className="feed-panel">
-        <div className="feed-summary">
+    <div className={`home-forest-page home-forest-${sceneTheme} ${panelsHidden ? 'home-panels-hidden' : ''}`}>
+      {records.length > 0 && (
+        <TopicForestScene
+          topics={records}
+          totalCount={totalTopicCount}
+          theme={sceneTheme}
+          hasMore={Boolean(feed.hasNextPage)}
+          isLoadingMore={feed.isFetchingNextPage}
+          onNeedMore={loadMoreTopics}
+        />
+      )}
+      <button
+        className="home-panel-toggle"
+        onClick={() => setPanelsHidden((hidden) => !hidden)}
+        type="button"
+        aria-pressed={panelsHidden}
+        aria-label={panelsHidden ? 'Show panels' : 'Hide panels'}
+        title={panelsHidden ? 'Show panels' : 'Hide panels'}
+      >
+        {panelsHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+      </button>
+      <div className="home-forest-overlay">
+        <section className="home-control-panel">
+          <div className="feed-summary">
           <div>
             <span className="eyebrow">Debate feed</span>
             <h1>Browse structured discussions</h1>
           </div>
           <div className="feed-summary-grid">
             <span>
-              <strong>{feedSummary.topics}</strong>
-              topics
+              <strong>
+                {feedSummary.loadedTopics}/{feedSummary.topics}
+              </strong>
+              loaded
             </span>
             <span>
               <strong>{feedSummary.opinions}</strong>
@@ -132,8 +137,8 @@ export function HomePage() {
               top category
             </span>
           </div>
-        </div>
-        <div className="feed-toolbar">
+          </div>
+          <div className="feed-toolbar">
           <div className="segmented">
             {sorts.map((item) => (
               <button
@@ -141,7 +146,6 @@ export function HomePage() {
                 className={sort === item ? 'active' : ''}
                 onClick={() => {
                   setSort(item);
-                  setPage(0);
                 }}
                 type="button"
               >
@@ -152,19 +156,26 @@ export function HomePage() {
               </button>
             ))}
           </div>
+          <button
+            className="theme-toggle"
+            onClick={() => setSceneTheme((value) => (value === 'day' ? 'night' : 'day'))}
+            type="button"
+          >
+            {sceneTheme === 'day' ? <Sun size={17} /> : <Moon size={17} />}
+            <span>{sceneTheme === 'day' ? 'Day' : 'Night'}</span>
+          </button>
           <label className="search-box">
             <Search size={18} />
             <input
               value={keyword}
               onChange={(event) => {
                 setKeyword(event.target.value);
-                setPage(0);
               }}
               placeholder="Search topics"
             />
           </label>
-        </div>
-        <div className="category-row">
+          </div>
+          <div className="category-row">
           <Filter size={16} />
           {categories.map((item) => (
             <button
@@ -172,14 +183,14 @@ export function HomePage() {
               className={category === item ? 'category-active' : ''}
               onClick={() => {
                 setCategory(item);
-                setPage(0);
               }}
               type="button"
             >
               {item}
             </button>
           ))}
-        </div>
+          </div>
+        </section>
         {feed.isLoading && <LoadingState label="Loading feed" />}
         {feed.isError && <ErrorState error={feed.error} />}
         {!feed.isLoading && !feed.isError && records.length === 0 && (
@@ -191,71 +202,16 @@ export function HomePage() {
             </Link>
           </div>
         )}
-        {records.map((topic) => (
-          <Link to={`/topics/${topic.id}`} className="topic-card debate-card" key={topic.id}>
-            <div className="topic-score-rail debate-rail">
-              <Activity size={18} />
-              <strong>{activityScore(topic)}</strong>
-              <span>{activityLabel(topic)}</span>
-              <div className="rail-meter" aria-hidden="true">
-                <span style={{ height: `${Math.max(10, Math.min(100, activityScore(topic) * 6))}%` }} />
-              </div>
-            </div>
-            <div className="topic-card-main">
-              <div className="topic-meta">
-                <strong className="category-chip">{topic.category}</strong>
-                <span>u/{topic.author}</span>
-                <span>{ageLabel(topic.createdAt)}</span>
-              </div>
-              <h2>
-                <span>{topic.title}</span>
-              </h2>
-              <p>{excerpt(topic.content)}</p>
-              <div className="structure-strip" title="Root opinions compared with replies">
-                <span className="structure-root" style={{ flex: Math.max(1, rootOpinionCount(topic)) }} />
-                <span className="structure-reply" style={{ flex: Math.max(1, topic.replyCount) }} />
-              </div>
-              <div className="topic-footer debate-footer">
-                <span>
-                  <Users size={15} />
-                  {pluralize(topic.opinionCount, 'opinion')}
-                </span>
-                <span>
-                  <MessageCircle size={15} />
-                  {pluralize(topic.replyCount, 'reply', 'replies')}
-                </span>
-                <span>
-                  <Layers size={15} />
-                  {rootOpinionCount(topic)} root {rootOpinionCount(topic) === 1 ? 'branch' : 'branches'}
-                </span>
-              </div>
-            </div>
-            <div className="debate-status-panel">
-              <span className={`debate-status debate-status-${discussionShape(topic).tone}`}>{discussionShape(topic).label}</span>
-              <small>{discussionShape(topic).detail}</small>
-              <span className="posted-at">{formatDateTime(topic.createdAt)}</span>
-            </div>
-          </Link>
-        ))}
         {records.length > 0 && (
-          <div className="pager">
-            <button disabled={page === 0 || feed.isFetching} onClick={() => setPage((value) => Math.max(0, value - 1))} type="button">
-              Previous
-            </button>
-            <span>
-              Page {page + 1} of {totalPages}
-            </span>
-            <button
-              disabled={page + 1 >= totalPages || feed.isFetching}
-              onClick={() => setPage((value) => value + 1)}
-              type="button"
-            >
-              Next
-            </button>
+          <div className="forest-load-status home-pager">
+            {feed.isFetchingNextPage
+              ? 'Growing more trees...'
+              : feed.hasNextPage
+                ? 'Scroll forward through the forest to load more topics'
+                : 'End of the ranked grove'}
           </div>
         )}
-      </section>
-      <aside className="sidebar">
+        <aside className="sidebar home-side-panel">
         <Link to="/topics/new" className="sidebar-create">
           <Plus size={18} />
           New topic
@@ -276,7 +232,6 @@ export function HomePage() {
                 className={category === item ? 'category-active' : ''}
                 onClick={() => {
                   setCategory(item);
-                  setPage(0);
                 }}
                 type="button"
               >
@@ -284,7 +239,8 @@ export function HomePage() {
               </button>
             ))}
         </div>
-      </aside>
+        </aside>
+      </div>
     </div>
   );
 }
