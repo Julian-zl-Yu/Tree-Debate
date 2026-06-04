@@ -82,7 +82,7 @@ public class SecurityConfig {
 
                         // 认证端点（注册/登录）
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/health", "/api/health/**").permitAll()
+                        .requestMatchers("/api/health", "/api/health/**").permitAll()
 
                         // 预检请求
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
